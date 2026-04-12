@@ -1903,7 +1903,11 @@ function setTool(tool, keepSel = false) {
 
   // ── Storage 업로드 헬퍼 ──────────────────────────────────
   async function uploadToStorage(blob, fileName) {
-    const path = `${currentProjId}/${Date.now()}_${fileName}`;
+    const safeName = fileName
+      .replace(/[^\w.\-]/g, '_')   // 공백·한글·특수문자 → _
+      .replace(/_+/g, '_')          // 연속 _ 정리
+      .replace(/^_|_$/g, '');       // 앞뒤 _ 제거
+    const path = `${currentProjId}/${Date.now()}_${safeName || 'file'}`;
     const { error } = await sb.storage.from('canvas-files').upload(path, blob, { upsert: true });
     if (error) throw error;
     const { data } = sb.storage.from('canvas-files').getPublicUrl(path);
