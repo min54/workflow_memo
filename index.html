@@ -1,0 +1,2444 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>메모</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html, body {
+      width: 100%; height: 100%;
+      background: #f0efec;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans KR', sans-serif;
+      overflow: hidden;
+      user-select: none;
+    }
+
+    /* ── 좌측 사이드바 ── */
+    #sidebar {
+      position: fixed;
+      left: 0; top: 0; bottom: 0;
+      width: 220px;
+      background: #ffffff;
+      border-right: 1px solid #e3e2de;
+      display: flex;
+      flex-direction: column;
+      z-index: 300;
+    }
+
+    #sidebar-header {
+      padding: 20px 16px 12px;
+      font-size: 11px;
+      font-weight: 600;
+      color: #aaa;
+      letter-spacing: 0.8px;
+      text-transform: uppercase;
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    #btn-search-sidebar {
+      background: none;
+      border: none;
+      cursor: pointer;
+      color: #b0aead;
+      padding: 2px;
+      display: flex;
+      align-items: center;
+      border-radius: 4px;
+      transition: color 0.12s, background 0.12s;
+    }
+    #btn-search-sidebar:hover { color: #37352f; background: #f0efec; }
+
+    #project-list {
+      flex: 1;
+      overflow-y: auto;
+      padding: 0 8px;
+    }
+
+    #project-list::-webkit-scrollbar { width: 3px; }
+    #project-list::-webkit-scrollbar-thumb { background: #e0dfdc; border-radius: 2px; }
+
+    .proj-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 10px;
+      border-radius: 7px;
+      cursor: pointer;
+      transition: background 0.12s;
+      user-select: none;
+      position: relative;
+    }
+
+    .proj-item:hover { background: #f0efec; }
+    .proj-item.active { background: #f0efec; font-weight: 600; }
+
+    .proj-dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: #b0aead;
+      flex-shrink: 0;
+    }
+
+    .proj-item.active .proj-dot { background: #37352f; }
+
+    .proj-name {
+      flex: 1;
+      font-size: 13px;
+      color: #37352f;
+      outline: none;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      cursor: text;
+      user-select: text;
+    }
+
+    .proj-name:focus {
+      overflow: visible;
+      text-overflow: clip;
+    }
+
+    .proj-del {
+      opacity: 0;
+      background: none;
+      border: none;
+      cursor: pointer;
+      font-size: 12px;
+      color: #b0aead;
+      padding: 2px 4px;
+      border-radius: 4px;
+      line-height: 1;
+      flex-shrink: 0;
+      transition: color 0.12s;
+    }
+
+    .proj-item:hover .proj-del { opacity: 1; }
+    .proj-del:hover { color: #e03e3e; }
+
+    #add-project-btn {
+      margin: 8px;
+      padding: 8px 12px;
+      background: none;
+      border: 1.5px dashed #d0cfcc;
+      border-radius: 8px;
+      color: #aaa;
+      font-size: 12px;
+      font-family: inherit;
+      cursor: pointer;
+      text-align: center;
+      transition: border-color 0.15s, color 0.15s;
+      flex-shrink: 0;
+    }
+
+    #add-project-btn:hover { border-color: #37352f; color: #37352f; }
+
+    #viewport {
+      position: fixed;
+      top: 0; bottom: 90px;
+      left: 220px; right: 0;
+      overflow: hidden;
+    }
+
+    #world {
+      position: absolute;
+      top: 0; left: 0;
+      width: 0; height: 0;
+    }
+
+    /* ── 텍스트 블록 ── */
+    .block {
+      position: absolute;
+      display: flex;
+      align-items: flex-start;
+    }
+
+    .handle {
+      opacity: 0;
+      cursor: grab;
+      color: #b0aead;
+      line-height: 1;
+      transition: opacity 0.15s;
+      user-select: none;
+      flex-shrink: 0;
+      padding: 4px 8px 4px 4px;
+    }
+
+    .block:hover .handle,
+    .img-block:hover .handle { opacity: 1; }
+    .handle:active { cursor: grabbing; }
+
+    /* 선택 상태 */
+    .block.selected,
+    .img-block.selected {
+      outline: 2px solid #4a90d9;
+      outline-offset: 4px;
+      border-radius: 6px;
+      box-shadow: 0 0 0 4px rgba(74,144,217,0.15);
+    }
+
+    /* 러버밴드 선택 박스 */
+    #sel-box {
+      position: fixed;
+      border: 1.5px solid #4a90d9;
+      background: rgba(74, 144, 217, 0.08);
+      border-radius: 4px;
+      pointer-events: none;
+      display: none;
+      z-index: 999;
+    }
+
+    /* Space 패닝 커서 */
+    body.space-pan #viewport { cursor: grab; }
+    body.space-pan.panning  #viewport { cursor: grabbing; }
+
+    /* 그룹 선택 도구 활성화 시 커서 */
+    body.mode-select #viewport { cursor: crosshair; }
+
+    /* ── 우측 툴바 ── */
+    #toolbar {
+      position: fixed;
+      right: 16px;
+      top: 50%;
+      transform: translateY(-50%);
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      background: #fff;
+      border: 1px solid #e3e2de;
+      border-radius: 12px;
+      padding: 6px;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.08);
+      z-index: 200;
+    }
+
+    .tool-btn {
+      width: 36px;
+      height: 36px;
+      border: none;
+      border-radius: 8px;
+      background: transparent;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #888;
+      transition: background 0.12s, color 0.12s;
+      position: relative;
+    }
+
+    .tool-btn:hover { background: #f0efec; color: #37352f; }
+    .tool-btn.active { background: #37352f; color: #fff; }
+    .tool-btn svg { width: 17px; height: 17px; display: block; }
+
+    .color-label {
+      font-size: 20px;
+      font-weight: 700;
+      line-height: 1;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans KR', sans-serif;
+    }
+    .color-tool-btn.active {
+      background: #f0efec !important;
+    }
+    .color-tool-btn.active .color-label {
+      text-decoration: underline;
+      text-underline-offset: 3px;
+      text-decoration-thickness: 2px;
+    }
+
+    .tool-btn::after {
+      content: attr(data-tip);
+      position: absolute;
+      right: calc(100% + 8px);
+      top: 50%;
+      transform: translateY(-50%);
+      background: #37352f;
+      color: #fff;
+      font-size: 11px;
+      padding: 4px 8px;
+      border-radius: 5px;
+      white-space: nowrap;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.15s;
+    }
+    .tool-btn:hover::after { opacity: 1; }
+
+    /* 삭제 버튼 */
+    .delete-btn {
+      opacity: 0;
+      cursor: pointer;
+      color: #b0aead;
+      font-size: 13px;
+      line-height: 1;
+      transition: opacity 0.15s, color 0.15s;
+      user-select: none;
+      flex-shrink: 0;
+      padding: 2px 0 2px 4px;
+      margin-top: 4px;
+      background: none;
+      border: none;
+    }
+
+    .block:hover .delete-btn,
+    .img-block:hover .delete-btn { opacity: 1; }
+    .delete-btn:hover { color: #e03e3e; }
+
+
+    .block-body {
+      display: flex;
+      flex-direction: column;
+      min-width: 60px;
+    }
+
+    .block-title {
+      font-weight: 700;
+      color: #37352f;
+      line-height: 1.4;
+      outline: none;
+      cursor: text;
+      white-space: nowrap;
+      user-select: text;
+      caret-color: #37352f;
+    }
+
+    /* 제목이 비어있고 포커스 없으면 완전히 숨김 */
+    .block-title:empty:not(:focus) {
+      display: none;
+    }
+
+    /* 포커스 시에만 플레이스홀더 표시 */
+    .block-title:empty:focus::before {
+      content: attr(data-ph);
+      color: #c8c7c3;
+      pointer-events: none;
+    }
+
+    .block-content {
+      font-weight: 400;
+      color: #555;
+      line-height: 1.4;
+      outline: none;
+      cursor: text;
+      white-space: nowrap;
+      user-select: text;
+      caret-color: #37352f;
+    }
+
+    .block-content:empty::before {
+      content: attr(data-ph);
+      color: #c8c7c3;
+      pointer-events: none;
+    }
+
+    /* ── 캔버스 이미지 블록 ── */
+    .img-block {
+      position: absolute;
+      display: flex;
+      align-items: flex-start;
+    }
+
+    .img-inner {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0;
+      /* 이미지 너비에 캡션 너비가 자동으로 맞춰짐 */
+      min-width: 0;
+    }
+
+    .img-thumb {
+      display: block;
+      border-radius: 3px;
+      box-shadow: 0 3px 16px rgba(0,0,0,0.14);
+      object-fit: cover;
+      user-select: none;
+      pointer-events: none;
+    }
+
+    /* 캔버스 이미지 캡션 */
+    .img-caption {
+      text-align: center;
+      color: #37352f;
+      font-weight: 500;
+      outline: none;
+      cursor: text;
+      white-space: normal;      /* 줄바꿈 허용 */
+      word-break: break-word;
+      user-select: text;
+      caret-color: #37352f;
+      letter-spacing: 0.01em;
+      width: 100%;              /* img-inner가 이미지 너비 = 캡션 너비 */
+      max-width: 100%;
+      line-height: 1.4;
+    }
+
+    .img-caption:empty::before {
+      content: '제목';
+      color: #c8c7c3;
+      pointer-events: none;
+      font-weight: 400;
+    }
+
+    /* ── 파일 블록 (PDF / Excel) ── */
+    .file-block {
+      position: absolute;
+      display: flex;
+      align-items: flex-start;
+    }
+    .file-inner {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+      padding: 12px 10px 10px;
+      background: #fff;
+      border-radius: 10px;
+      border: 1px solid #e3e2de;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+      cursor: pointer;
+      min-width: 90px;
+    }
+    .file-inner:hover { background: #fafaf8; }
+    .file-icon {
+      width: 52px; height: 64px;
+      border-radius: 6px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 11px; font-weight: 800; letter-spacing: 0.5px;
+      color: #fff;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+    }
+    .file-icon.pdf   { background: #e03e3e; }
+    .file-icon.excel { background: #1d6f42; }
+    .file-icon.word  { background: #2b579a; }
+    .file-icon.ppt   { background: #d24726; }
+    .file-icon.txt   { background: #666; }
+    .file-icon.other { background: #888; }
+    .file-name {
+      font-size: 10px; color: #37352f; text-align: center;
+      word-break: break-all; max-width: 90px; line-height: 1.3;
+    }
+    .file-block:hover .handle { opacity: 1; }
+    .file-block:hover .delete-btn { opacity: 1; }
+    .file-block.selected {
+      outline: 2px solid #4a90d9;
+      outline-offset: 4px;
+      border-radius: 6px;
+      box-shadow: 0 0 0 4px rgba(74,144,217,0.15);
+    }
+
+    /* ── 하단 고정 바 ── */
+    #bottom-bar {
+      position: fixed;
+      bottom: 0; left: 220px; right: 0;
+      height: 90px;
+      background: #ffffff;
+      border-top: 1px solid #e3e2de;
+      display: flex;
+      align-items: center;
+      z-index: 100;
+    }
+
+    #bottom-bar.drag-over { background: #f7f6f3; border-color: #37352f; }
+
+    /* 업로드 버튼 */
+    #upload-area {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 5px;
+      width: 70px;
+      height: 100%;
+      border-right: 1px solid #e3e2de;
+      cursor: pointer;
+      flex-shrink: 0;
+      transition: background 0.15s;
+      color: #999;
+    }
+
+    #upload-area:hover { background: #f7f6f3; color: #37352f; }
+
+    #upload-area span { font-size: 10px; }
+
+    #file-input { display: none; }
+
+    /* 썸네일 스크롤 스트립 */
+    #thumb-strip {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      overflow-x: auto;
+      flex: 1;
+      height: 100%;
+      padding: 8px 14px;
+      scroll-behavior: smooth;
+    }
+
+    #thumb-strip::-webkit-scrollbar { height: 3px; }
+    #thumb-strip::-webkit-scrollbar-thumb { background: #e0dfdc; border-radius: 2px; }
+
+    /* 개별 썸네일 카드 - 최소 단위 */
+    .strip-card {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 5px;
+      flex-shrink: 0;
+    }
+
+    .strip-card-img {
+      width: 54px;
+      height: 54px;
+      object-fit: cover;
+      border-radius: 7px;
+      border: 2px solid transparent;
+      cursor: pointer;
+      display: block;
+      transition: border-color 0.15s, transform 0.12s;
+      flex-shrink: 0;
+    }
+
+    .strip-card-img:hover {
+      border-color: #37352f;
+      transform: scale(1.07);
+    }
+
+    /* 파일 스트립 카드 */
+    .strip-file-icon {
+      width: 54px; height: 54px;
+      border-radius: 7px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 12px; font-weight: 800; color: #fff;
+      cursor: pointer;
+      flex-shrink: 0;
+      transition: transform 0.12s, opacity 0.12s;
+    }
+    .strip-file-icon:hover { transform: scale(1.07); opacity: 0.88; }
+    .strip-file-icon.pdf   { background: #e03e3e; }
+    .strip-file-icon.excel { background: #1d6f42; }
+    .strip-file-icon.word  { background: #2b579a; }
+    .strip-file-icon.ppt   { background: #d24726; }
+    .strip-file-icon.txt   { background: #666; }
+    .strip-file-icon.other { background: #888; }
+
+    /* 썸네일 아래 편집 가능한 제목 */
+    .strip-label {
+      font-size: 10px;
+      color: #555;
+      text-align: center;
+      outline: none;
+      cursor: text;
+      white-space: nowrap;
+      width: 60px;
+      max-width: 60px;
+      overflow: hidden;
+      user-select: text;
+      caret-color: #37352f;
+      padding: 1px 3px;
+      border-radius: 3px;
+      line-height: 1.4;
+      /* contenteditable에서 말줄임은 CSS만으로 안 되므로
+         JS로 처리 — 여기선 클립만 */
+    }
+
+    .strip-label:focus {
+      background: #f0efec;
+      /* 포커스 시 가로 스크롤로 전체 내용 확인 */
+      overflow-x: auto;
+      overflow-y: hidden;
+      scrollbar-width: none;
+    }
+
+    .strip-label:focus::-webkit-scrollbar { display: none; }
+
+    .strip-label:empty::before {
+      content: '제목';
+      color: #ccc;
+      pointer-events: none;
+    }
+
+
+    /* ── UI 레이블 ── */
+    #zoom-label {
+      position: fixed;
+      bottom: 98px;
+      right: 18px;
+      font-size: 11px;
+      color: #b0aead;
+      pointer-events: none;
+      user-select: none;
+    }
+
+    .help-section {
+      margin-bottom: 20px;
+    }
+    .help-title {
+      font-size: 11px;
+      font-weight: 700;
+      color: #aaa;
+      letter-spacing: 0.8px;
+      text-transform: uppercase;
+      margin-bottom: 8px;
+    }
+    .help-row {
+      display: flex;
+      align-items: baseline;
+      gap: 12px;
+      padding: 5px 0;
+      border-bottom: 1px solid #f0efec;
+      font-size: 13px;
+    }
+    .help-key {
+      background: #f0efec;
+      border-radius: 5px;
+      padding: 2px 8px;
+      font-size: 12px;
+      font-weight: 600;
+      color: #37352f;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+
+    #hint {
+      position: fixed;
+      bottom: 98px;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: 11px;
+      color: #b0aead;
+      pointer-events: none;
+      user-select: none;
+      transition: opacity 0.5s;
+      white-space: nowrap;
+    }
+  </style>
+</head>
+<body>
+
+<!-- 좌측 사이드바 -->
+<div id="sidebar">
+  <div id="sidebar-header">
+    <span>Projects</span>
+    <button id="btn-search-sidebar" title="검색 (Ctrl+F)">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+      </svg>
+    </button>
+  </div>
+  <div id="project-list"></div>
+  <button id="add-project-btn">+ 새 프로젝트</button>
+</div>
+
+<div id="viewport">
+  <div id="world"></div>
+</div>
+<div id="sel-box"></div>
+
+<!-- 우측 툴바 -->
+<div id="toolbar">
+  <button class="tool-btn active" id="btn-pointer" data-tip="포인터  V">
+    <svg viewBox="0 0 24 24" fill="currentColor">
+      <path d="M5.5 3.21V20.8c0 .45.54.67.85.35l4.86-4.86 3.32 7.28c.13.28.45.4.73.28l2.5-1.14c.28-.13.4-.45.28-.73l-3.32-7.28h6.35c.46 0 .68-.55.35-.86L6.35 2.85a.5.5 0 0 0-.85.36z"/>
+    </svg>
+  </button>
+  <button class="tool-btn" id="btn-select" data-tip="그룹 선택  S">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <rect x="3" y="3" width="7" height="7" rx="1"/>
+      <rect x="14" y="3" width="7" height="7" rx="1"/>
+      <rect x="3" y="14" width="7" height="7" rx="1"/>
+      <rect x="14" y="14" width="7" height="7" rx="1"/>
+    </svg>
+  </button>
+  <div style="height:1px;background:#e3e2de;margin:4px 2px;"></div>
+  <button class="tool-btn color-tool-btn active" id="color-black" data-tip="검은색" data-color="#37352f">
+    <span class="color-label" style="color:#37352f;">A</span>
+  </button>
+  <button class="tool-btn color-tool-btn" id="color-red" data-tip="빨간색" data-color="#e03e3e">
+    <span class="color-label" style="color:#e03e3e;">A</span>
+  </button>
+  <div style="height:1px;background:#e3e2de;margin:4px 2px;"></div>
+  <button class="tool-btn" id="btn-copy-selected" data-tip="선택 복사 (Ctrl+C)" style="opacity:0.3;pointer-events:none;">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <rect x="9" y="9" width="13" height="13" rx="2"/>
+      <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+    </svg>
+  </button>
+  <button class="tool-btn" id="btn-delete-selected" data-tip="선택 삭제" style="color:#e03e3e;opacity:0.3;pointer-events:none;">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <polyline points="3 6 5 6 21 6"/>
+      <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
+      <path d="M10 11v6M14 11v6"/>
+      <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>
+    </svg>
+  </button>
+  <button class="tool-btn" id="btn-help" data-tip="사용법">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="12" cy="12" r="10"/>
+      <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/>
+      <line x1="12" y1="17" x2="12.01" y2="17"/>
+    </svg>
+  </button>
+  <button class="tool-btn" id="btn-download" data-tip="전체 다운로드 (ZIP)">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+      <polyline points="7 10 12 15 17 10"/>
+      <line x1="12" y1="15" x2="12" y2="3"/>
+    </svg>
+  </button>
+</div>
+
+
+
+<div id="bottom-bar">
+  <div id="upload-area" title="이미지 업로드 (또는 드래그)">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+      <polyline points="17 8 12 3 7 8"/>
+      <line x1="12" y1="3" x2="12" y2="15"/>
+    </svg>
+    <span>추가</span>
+  </div>
+  <div id="thumb-strip"></div>
+  <input type="file" id="file-input" accept="image/*,.pdf,.xls,.xlsx,.csv,.txt,.doc,.docx,.ppt,.pptx" multiple />
+</div>
+
+<div id="zoom-label">100%</div>
+
+<!-- 사용법 모달 -->
+<div id="help-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:3000;align-items:center;justify-content:center;">
+  <div style="background:#fff;border-radius:16px;width:600px;max-height:80vh;display:flex;flex-direction:column;box-shadow:0 12px 48px rgba(0,0,0,0.2);overflow:hidden;">
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:20px 24px 16px;border-bottom:1px solid #e3e2de;flex-shrink:0;">
+      <div style="font-size:16px;font-weight:700;color:#37352f;">사용법 가이드</div>
+      <button id="help-modal-close" style="background:none;border:none;cursor:pointer;color:#aaa;font-size:18px;line-height:1;padding:2px 4px;border-radius:4px;">✕</button>
+    </div>
+    <div style="overflow-y:auto;padding:20px 24px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans KR',sans-serif;color:#37352f;">
+
+      <div class="help-section">
+        <div class="help-title">캔버스 조작</div>
+        <div class="help-row"><span class="help-key">더블클릭</span><span>텍스트 블록 생성</span></div>
+        <div class="help-row"><span class="help-key">휠 스크롤</span><span>확대 / 축소</span></div>
+        <div class="help-row"><span class="help-key">빈 캔버스 드래그</span><span>화면 이동 (패닝)</span></div>
+      </div>
+
+      <div class="help-section">
+        <div class="help-title">슬래시 커맨드</div>
+        <div class="help-row"><span class="help-key">/섹션 + 스페이스</span><span>큰 제목 (~40px)</span></div>
+        <div class="help-row"><span class="help-key">/제목 + 스페이스</span><span>중간 제목 (~30px)</span></div>
+        <div class="help-row"><span class="help-key">/설명 + 스페이스</span><span>일반 크기로 복귀</span></div>
+      </div>
+
+      <div class="help-section">
+        <div class="help-title">블록 이동 / 선택</div>
+        <div class="help-row"><span class="help-key">⋮⋮ 핸들 드래그</span><span>블록 단독 이동</span></div>
+        <div class="help-row"><span class="help-key">S 키</span><span>그룹 선택 모드 (드래그로 여러 블록 선택)</span></div>
+        <div class="help-row"><span class="help-key">그룹 선택 후 빈 캔버스 드래그</span><span>선택 블록 전체 이동</span></div>
+        <div class="help-row"><span class="help-key">V 키 / Esc</span><span>포인터 모드 복귀</span></div>
+      </div>
+
+      <div class="help-section">
+        <div class="help-title">단축키</div>
+        <div class="help-row"><span class="help-key">Ctrl+F</span><span>전체 프로젝트 검색</span></div>
+        <div class="help-row"><span class="help-key">Ctrl+C</span><span>선택 블록 복사</span></div>
+        <div class="help-row"><span class="help-key">Ctrl+V</span><span>붙여넣기</span></div>
+        <div class="help-row"><span class="help-key">Ctrl+Z</span><span>되돌리기 (최대 20단계)</span></div>
+        <div class="help-row"><span class="help-key">Delete / Backspace</span><span>선택 블록 삭제</span></div>
+      </div>
+
+      <div class="help-section">
+        <div class="help-title">파일 업로드</div>
+        <div class="help-row"><span class="help-key">하단 추가 버튼</span><span>이미지·PDF·Excel·Word·PPT·TXT 업로드</span></div>
+        <div class="help-row"><span class="help-key">드래그 앤 드롭</span><span>파일을 캔버스에 바로 드롭</span></div>
+        <div class="help-row"><span class="help-key">이미지 클릭</span><span>미리보기 + 다운로드</span></div>
+        <div class="help-row"><span class="help-key">PDF 클릭</span><span>브라우저 내 미리보기</span></div>
+      </div>
+
+      <div class="help-section">
+        <div class="help-title">프로젝트 관리</div>
+        <div class="help-row"><span class="help-key">프로젝트 이름 더블클릭</span><span>이름 편집</span></div>
+        <div class="help-row"><span class="help-key">돋보기 아이콘</span><span>전체 프로젝트 검색 열기</span></div>
+        <div class="help-row"><span class="help-key">다운로드 버튼</span><span>ZIP으로 전체 내보내기 (위치 보존)</span></div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- 검색 모달 -->
+<div id="search-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.4);z-index:3000;align-items:flex-start;justify-content:center;padding-top:80px;">
+  <div style="background:#fff;border-radius:14px;width:540px;max-height:70vh;display:flex;flex-direction:column;box-shadow:0 12px 48px rgba(0,0,0,0.25);overflow:hidden;">
+    <div style="display:flex;align-items:center;padding:14px 16px;border-bottom:1px solid #e3e2de;gap:10px;">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#aaa" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      <input id="search-input" type="text" placeholder="검색어를 입력하세요..." style="flex:1;border:none;outline:none;font-size:15px;color:#37352f;font-family:inherit;background:transparent;" />
+      <span id="search-count" style="font-size:11px;color:#aaa;flex-shrink:0;"></span>
+    </div>
+    <div id="search-results" style="overflow-y:auto;padding:8px 0;"></div>
+  </div>
+</div>
+
+<!-- 파일명 입력 모달 -->
+<div id="name-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:2000;align-items:center;justify-content:center;">
+  <div style="background:#fff;border-radius:14px;padding:28px 28px 22px;width:340px;box-shadow:0 8px 40px rgba(0,0,0,0.2);">
+    <div style="font-size:13px;font-weight:600;color:#37352f;margin-bottom:14px;">파일 이름 설정</div>
+    <input id="name-modal-input" type="text" style="width:100%;padding:10px 12px;border:1.5px solid #e3e2de;border-radius:8px;font-size:14px;color:#37352f;outline:none;font-family:inherit;" placeholder="이름을 입력하세요" />
+    <div style="display:flex;gap:8px;margin-top:16px;justify-content:flex-end;">
+      <button id="name-modal-cancel" style="padding:8px 18px;border:1px solid #e3e2de;background:#fff;color:#888;border-radius:8px;font-size:13px;cursor:pointer;">취소</button>
+      <button id="name-modal-confirm" style="padding:8px 18px;border:none;background:#37352f;color:#fff;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;">추가</button>
+    </div>
+  </div>
+</div>
+
+<!-- 이미지 미리보기 모달 -->
+<div id="img-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:1000;align-items:center;justify-content:center;flex-direction:column;gap:12px;">
+  <img id="img-modal-img" src="" style="max-width:90vw;max-height:80vh;border-radius:10px;box-shadow:0 8px 40px rgba(0,0,0,0.4);object-fit:contain;display:block;">
+  <div style="display:flex;gap:10px;">
+    <button id="img-modal-download" style="padding:8px 20px;border:none;background:#fff;color:#37352f;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;">다운로드</button>
+    <button id="img-modal-close" style="padding:8px 20px;border:none;background:rgba(255,255,255,0.2);color:#fff;border-radius:8px;font-size:13px;cursor:pointer;">닫기</button>
+  </div>
+</div>
+
+<!-- PDF 미리보기 모달 -->
+<div id="pdf-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:1000;display:none;align-items:center;justify-content:center;">
+  <div style="position:relative;width:88vw;height:90vh;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 8px 40px rgba(0,0,0,0.3);">
+    <button id="pdf-modal-close" style="position:absolute;top:10px;right:12px;z-index:10;border:none;background:rgba(0,0,0,0.15);color:#fff;font-size:18px;width:32px;height:32px;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1;">✕</button>
+    <iframe id="pdf-frame" src="" style="width:100%;height:100%;border:none;"></iframe>
+  </div>
+</div>
+<div id="hint">더블클릭 → 새 텍스트 블록 &nbsp;|&nbsp; 휠 → 확대/축소</div>
+
+<script>
+  // ── 파일명 입력 모달 ─────────────────────────────────────
+  const nameModal        = document.getElementById('name-modal');
+  const nameModalInput   = document.getElementById('name-modal-input');
+  const nameModalConfirm = document.getElementById('name-modal-confirm');
+  const nameModalCancel  = document.getElementById('name-modal-cancel');
+
+  function askFileName(defaultName) {
+    return new Promise(resolve => {
+      nameModalInput.value = defaultName;
+      nameModal.style.display = 'flex';
+      nameModalInput.focus();
+      nameModalInput.select();
+
+      function confirm() {
+        cleanup();
+        resolve(nameModalInput.value.trim() || defaultName);
+      }
+      function cancel() {
+        cleanup();
+        resolve(null);
+      }
+      function onKey(e) {
+        if (e.key === 'Enter') confirm();
+        if (e.key === 'Escape') cancel();
+      }
+
+      function cleanup() {
+        nameModal.style.display = 'none';
+        nameModalConfirm.removeEventListener('click', confirm);
+        nameModalCancel.removeEventListener('click', cancel);
+        nameModalInput.removeEventListener('keydown', onKey);
+      }
+
+      nameModalConfirm.addEventListener('click', confirm);
+      nameModalCancel.addEventListener('click', cancel);
+      nameModalInput.addEventListener('keydown', onKey);
+    });
+  }
+
+  // ══════════════════════════════════════════════════════
+  // ── 프로젝트 관리 ────────────────────────────────────────
+  // ══════════════════════════════════════════════════════
+
+  // ── 이미지 미리보기 모달 ─────────────────────────────────
+  const imgModal         = document.getElementById('img-modal');
+  const imgModalImg      = document.getElementById('img-modal-img');
+  const imgModalDownload = document.getElementById('img-modal-download');
+  document.getElementById('img-modal-close').addEventListener('click', () => {
+    imgModal.style.display = 'none';
+    imgModalImg.src = '';
+  });
+  imgModal.addEventListener('click', e => {
+    if (e.target === imgModal) { imgModal.style.display = 'none'; imgModalImg.src = ''; }
+  });
+  imgModalDownload.addEventListener('click', () => {
+    const a = document.createElement('a');
+    a.href = imgModalImg.src;
+    a.download = imgModalImg.dataset.name || 'image.jpg';
+    a.click();
+  });
+  function openImgModal(src, name) {
+    imgModalImg.src = src;
+    imgModalImg.dataset.name = name || 'image.jpg';
+    imgModal.style.display = 'flex';
+  }
+
+  // ── PDF 미리보기 모달 ────────────────────────────────────
+  const pdfModal = document.getElementById('pdf-modal');
+  const pdfFrame = document.getElementById('pdf-frame');
+  document.getElementById('pdf-modal-close').addEventListener('click', () => {
+    pdfModal.style.display = 'none';
+    pdfFrame.src = '';
+  });
+  pdfModal.addEventListener('click', e => {
+    if (e.target === pdfModal) { pdfModal.style.display = 'none'; pdfFrame.src = ''; }
+  });
+  function openPdfModal(src) {
+    pdfFrame.src = src;
+    pdfModal.style.display = 'flex';
+  }
+
+  const PROJECTS_KEY  = 'memo_projects';
+  const CUR_PROJ_KEY  = 'memo_current_project';
+
+  function loadProjects() {
+    try { return JSON.parse(localStorage.getItem(PROJECTS_KEY)) || []; }
+    catch { return []; }
+  }
+
+  function saveProjects(list) {
+    localStorage.setItem(PROJECTS_KEY, JSON.stringify(list));
+  }
+
+  let projects       = loadProjects();
+  let currentProjId  = localStorage.getItem(CUR_PROJ_KEY) || null;
+
+  // 프로젝트가 없으면 기본 하나 생성
+  if (projects.length === 0) {
+    const def = { id: 'proj_' + Date.now(), name: '프로젝트 1' };
+    projects.push(def);
+    saveProjects(projects);
+  }
+
+  // currentProjId 유효성 확인
+  if (!projects.find(p => p.id === currentProjId)) {
+    currentProjId = projects[0].id;
+  }
+
+  function canvasKey(id) { return 'memo_canvas_' + id; }
+
+  // 사이드바 렌더링
+  function renderSidebar() {
+    const list = document.getElementById('project-list');
+    list.innerHTML = '';
+    for (const p of projects) {
+      const item = document.createElement('div');
+      item.className = 'proj-item' + (p.id === currentProjId ? ' active' : '');
+      item.dataset.id = p.id;
+
+      const dot = document.createElement('div');
+      dot.className = 'proj-dot';
+
+      const name = document.createElement('div');
+      name.className = 'proj-name';
+      name.contentEditable = 'false';
+      name.spellcheck = false;
+      name.innerText = p.name;
+
+      name.addEventListener('click', e => { if (name.contentEditable === 'true') e.stopPropagation(); });
+      name.addEventListener('dblclick', e => {
+        e.stopPropagation();
+        name.contentEditable = 'true';
+        name.focus();
+        // 커서를 텍스트 끝으로
+        const range = document.createRange();
+        range.selectNodeContents(name);
+        range.collapse(false);
+        const sel = window.getSelection();
+        sel.removeAllRanges();
+        sel.addRange(range);
+      });
+      name.addEventListener('blur', () => {
+        name.contentEditable = 'false';
+        p.name = name.innerText.trim() || '이름 없음';
+        name.innerText = p.name;
+        saveProjects(projects);
+        if (p.id === currentProjId) updateCanvasTitle();
+      });
+      name.addEventListener('keydown', e => {
+        if (e.key === 'Enter') { e.preventDefault(); name.blur(); }
+      });
+
+      const del = document.createElement('button');
+      del.className = 'proj-del';
+      del.innerHTML = '✕';
+      del.title = '삭제';
+      del.addEventListener('click', e => {
+        e.stopPropagation();
+        if (projects.length === 1) return;
+
+        // 이미 확인 모드면 무시
+        if (item.dataset.confirming) return;
+        item.dataset.confirming = '1';
+
+        // 기존 내용 숨기고 확인 UI 표시
+        dot.style.display  = 'none';
+        name.style.display = 'none';
+        del.style.display  = 'none';
+
+        const confirmRow = document.createElement('div');
+        confirmRow.style.cssText = 'display:flex;align-items:center;gap:6px;width:100%;';
+
+        const msg = document.createElement('span');
+        msg.style.cssText = 'font-size:11px;color:#e03e3e;flex:1;';
+        msg.textContent = '삭제할까요?';
+
+        const btnOk = document.createElement('button');
+        btnOk.textContent = '삭제';
+        btnOk.style.cssText = 'font-size:11px;padding:2px 8px;border:none;background:#e03e3e;color:#fff;border-radius:4px;cursor:pointer;';
+
+        const btnCancel = document.createElement('button');
+        btnCancel.textContent = '취소';
+        btnCancel.style.cssText = 'font-size:11px;padding:2px 8px;border:1px solid #e3e2de;background:#fff;color:#888;border-radius:4px;cursor:pointer;';
+
+        confirmRow.appendChild(msg);
+        confirmRow.appendChild(btnOk);
+        confirmRow.appendChild(btnCancel);
+        item.appendChild(confirmRow);
+
+        function restore() {
+          confirmRow.remove();
+          dot.style.display  = '';
+          name.style.display = '';
+          del.style.display  = '';
+          delete item.dataset.confirming;
+        }
+
+        btnOk.addEventListener('click', e => {
+          e.stopPropagation();
+          localStorage.removeItem(canvasKey(p.id));
+          projects = projects.filter(x => x.id !== p.id);
+          saveProjects(projects);
+          if (currentProjId === p.id) switchProject(projects[0].id);
+          else renderSidebar();
+        });
+
+        btnCancel.addEventListener('click', e => {
+          e.stopPropagation();
+          restore();
+        });
+      });
+
+      item.appendChild(dot);
+      item.appendChild(name);
+      item.appendChild(del);
+
+      item.addEventListener('click', () => {
+        if (p.id !== currentProjId) switchProject(p.id);
+      });
+
+      list.appendChild(item);
+    }
+  }
+
+  // 프로젝트 전환: 현재 캔버스 저장 → 새 캔버스 불러오기
+  function switchProject(id) {
+    saveCanvas();                      // 현재 프로젝트 저장
+    clearCanvas();                     // 캔버스 비우기
+    currentProjId = id;
+    localStorage.setItem(CUR_PROJ_KEY, id);
+    renderSidebar();
+    loadCanvas();                      // 새 프로젝트 불러오기
+    updateCanvasTitle();
+  }
+
+  // 새 프로젝트 추가
+  document.getElementById('add-project-btn').addEventListener('click', () => {
+    const p = { id: 'proj_' + Date.now(), name: '새 프로젝트' };
+    projects.push(p);
+    saveProjects(projects);
+    switchProject(p.id);
+    // 이름 편집 포커스
+    setTimeout(() => {
+      const items = document.querySelectorAll('.proj-item');
+      const last  = items[items.length - 1];
+      if (last) last.querySelector('.proj-name').focus();
+    }, 50);
+  });
+
+  // ══════════════════════════════════════════════════════
+  // ── 캔버스 엔진 ──────────────────────────────────────────
+  // ══════════════════════════════════════════════════════
+
+  const viewport   = document.getElementById('viewport');
+  const world      = document.getElementById('world');
+  const zoomLabel  = document.getElementById('zoom-label');
+  const thumbStrip = document.getElementById('thumb-strip');
+  const fileInput  = document.getElementById('file-input');
+  const bottomBar  = document.getElementById('bottom-bar');
+  const hintEl     = document.getElementById('hint');
+
+  let scale = 1, tx = 0, ty = 0;
+  const blocks     = [];
+  const imgBlocks  = [];
+  const fileBlocks = [];
+
+  // ── 저장 / 불러오기 (프로젝트별 키) ──────────────────────
+  function save() { saveCanvas(); }
+
+  function saveCanvas() {
+    const data = {
+      scale, tx, ty,
+      blocks: blocks.map(b => ({
+        wx: b.wx, wy: b.wy,
+        title:   b.titleEl.innerHTML,
+        content: b.contentEl.innerHTML,
+        color:   b.color,
+      })),
+      images: imgBlocks.map(b => ({
+        wx: b.wx, wy: b.wy,
+        src: b.src, w: b.w, h: b.h,
+        label: b.label,
+      })),
+      files: fileBlocks.map(b => ({
+        wx: b.wx, wy: b.wy,
+        name: b.name, fileType: b.fileType, src: b.src,
+      }))
+    };
+    try { localStorage.setItem(canvasKey(currentProjId), JSON.stringify(data)); } catch(e) {}
+  }
+
+  function loadData() {
+    try { return JSON.parse(localStorage.getItem(canvasKey(currentProjId))); }
+    catch { return null; }
+  }
+
+  // ── Undo 히스토리 ────────────────────────────────────────
+  const MAX_UNDO = 20;
+  let undoStack = [];
+  let isUndoing = false;
+
+  function pushUndoSnapshot() {
+    if (isUndoing) return;
+    const snapshot = {
+      blocks: blocks.map(b => ({
+        wx: b.wx, wy: b.wy,
+        title:   b.titleEl.innerHTML,
+        content: b.contentEl.innerHTML,
+        color:   b.color,
+      })),
+      images: imgBlocks.map(b => ({
+        wx: b.wx, wy: b.wy,
+        src: b.src, w: b.w, h: b.h, label: b.label,
+      })),
+      files: fileBlocks.map(b => ({
+        wx: b.wx, wy: b.wy,
+        name: b.name, fileType: b.fileType, src: b.src,
+      })),
+    };
+    undoStack.push(JSON.stringify(snapshot));
+    if (undoStack.length > MAX_UNDO) undoStack.shift();
+  }
+
+  function performUndo() {
+    if (undoStack.length === 0) return;
+    isUndoing = true;
+    const snapshot = JSON.parse(undoStack.pop());
+
+    // 캔버스 초기화 (scale/tx/ty 유지)
+    blocks.forEach(b => b.el.remove());    blocks.length = 0;
+    imgBlocks.forEach(b => b.el.remove()); imgBlocks.length = 0;
+    fileBlocks.forEach(b => b.el.remove()); fileBlocks.length = 0;
+    thumbStrip.innerHTML = '';
+    selected.clear(); updateDeleteBtn();
+
+    // 스냅샷으로 복원
+    for (const d of snapshot.blocks) {
+      const b = makeBlock(d.wx, d.wy);
+      if (d.title)   b.titleEl.innerHTML   = d.title;
+      if (d.content) b.contentEl.innerHTML = d.content;
+      if (d.color) { b.titleEl.style.color = d.color; b.contentEl.style.color = d.color; b.color = d.color; }
+    }
+    for (const d of snapshot.images) {
+      const b = makeImgBlock(d.wx, d.wy, d.src, d.w, d.h, d.label);
+      addStripCard(b);
+    }
+    for (const d of snapshot.files) {
+      const b = makeFileBlock(d.wx, d.wy, d.name, d.fileType, d.src);
+      addFileStripCard(b);
+    }
+
+    refresh(); save();
+    isUndoing = false;
+  }
+
+  // 캔버스 완전 초기화 (프로젝트 전환 시)
+  function clearCanvas() {
+    blocks.forEach(b => b.el.remove());
+    blocks.length = 0;
+    imgBlocks.forEach(b => b.el.remove());
+    imgBlocks.length = 0;
+    fileBlocks.forEach(b => b.el.remove());
+    fileBlocks.length = 0;
+    thumbStrip.innerHTML = '';
+    scale = 1; tx = 0; ty = 0;
+    zoomLabel.textContent = '100%';
+  }
+
+  // 저장된 데이터로 캔버스 복원
+  function loadCanvas() {
+    const saved = loadData();
+    if (saved && saved.blocks && saved.blocks.length > 0) {
+      scale = 1;
+      tx    = 0;
+      ty    = 0;
+      for (const d of saved.blocks) {
+        const b = makeBlock(d.wx, d.wy);
+        if (d.title)   b.titleEl.innerHTML   = d.title;
+        if (d.content) b.contentEl.innerHTML = d.content;
+        if (d.color) {
+          b.titleEl.style.color   = d.color;
+          b.contentEl.style.color = d.color;
+          b.color = d.color;
+        }
+      }
+      if (saved.images) {
+        for (const d of saved.images) {
+          const b = makeImgBlock(d.wx, d.wy, d.src, d.w, d.h, d.label);
+          addStripCard(b);
+        }
+      }
+      if (saved.files) {
+        for (const d of saved.files) {
+          const b = makeFileBlock(d.wx, d.wy, d.name, d.fileType, d.src);
+          addFileStripCard(b);
+        }
+      }
+      refresh();
+    } else {
+      makeBlock(100, 80);
+    }
+  }
+
+  // ── 좌측/상단 경계 클램핑 ────────────────────────────────
+  function clampView() {
+    if (tx > 0) tx = 0;
+    if (ty > 0) ty = 0;
+  }
+
+  // ── 캔버스 타이틀 블록 (world 0,0 고정) ─────────────────
+  const canvasTitleEl = document.createElement('div');
+  canvasTitleEl.id = 'canvas-title';
+  canvasTitleEl.style.cssText = `
+    position: absolute;
+    pointer-events: none;
+    user-select: none;
+    white-space: nowrap;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans KR', sans-serif;
+    font-weight: 800;
+    color: #37352f;
+    opacity: 0.30;
+    letter-spacing: -1px;
+    line-height: 1;
+    transform-origin: left top;
+  `;
+  world.appendChild(canvasTitleEl);
+
+  function updateCanvasTitle() {
+    const name = projects.find(p => p.id === currentProjId)?.name || '';
+    canvasTitleEl.textContent = name;
+    const fs = Math.max(1, 120 * scale);
+    canvasTitleEl.style.fontSize = fs + 'px';
+    canvasTitleEl.style.left = (30 * scale + tx) + 'px';
+    canvasTitleEl.style.top  = (30 * scale + ty) + 'px';
+  }
+
+  // ── refresh: 위치 + 크기 직접 계산 ───────────────────────
+  function refresh() {
+    clampView();
+    for (const b of blocks) {
+      b.el.style.left = (b.wx * scale + tx) + 'px';
+      b.el.style.top  = (b.wy * scale + ty) + 'px';
+      b.titleEl.style.fontSize     = Math.max(1, 32 * scale) + 'px';
+      b.titleEl.style.marginBottom = (6 * scale) + 'px';
+      b.contentEl.style.fontSize   = Math.max(1, 22 * scale) + 'px';
+      b.handleEl.style.fontSize    = Math.max(1, 18 * scale) + 'px';
+      b.handleEl.style.paddingRight = (6 * scale) + 'px';
+      b.handleEl.style.marginTop    = (4 * scale) + 'px';
+    }
+    for (const b of imgBlocks) {
+      b.el.style.left = (b.wx * scale + tx) + 'px';
+      b.el.style.top  = (b.wy * scale + ty) + 'px';
+      b.imgEl.style.width  = (b.w * scale) + 'px';
+      b.imgEl.style.height = (b.h * scale) + 'px';
+      b.captionEl.style.fontSize  = Math.max(1, 11 * scale) + 'px';
+      b.captionEl.style.marginTop = (5 * scale) + 'px';
+      b.handleEl.style.fontSize    = Math.max(1, 18 * scale) + 'px';
+      b.handleEl.style.paddingRight = (6 * scale) + 'px';
+      b.handleEl.style.marginTop    = (4 * scale) + 'px';
+    }
+    for (const b of fileBlocks) {
+      b.el.style.left = (b.wx * scale + tx) + 'px';
+      b.el.style.top  = (b.wy * scale + ty) + 'px';
+      b.innerEl.style.padding      = `${Math.max(3, 12*scale)}px ${Math.max(3, 10*scale)}px`;
+      b.innerEl.style.gap          = Math.max(2, 6 * scale) + 'px';
+      b.innerEl.style.borderRadius = Math.max(4, 10 * scale) + 'px';
+      b.iconEl.style.width         = Math.max(16, 52 * scale) + 'px';
+      b.iconEl.style.height        = Math.max(20, 64 * scale) + 'px';
+      b.iconEl.style.fontSize      = Math.max(5, 11 * scale) + 'px';
+      b.iconEl.style.borderRadius  = Math.max(2, 6 * scale) + 'px';
+      b.nameEl.style.fontSize      = Math.max(4, 10 * scale) + 'px';
+      b.handleEl.style.fontSize    = Math.max(1, 18 * scale) + 'px';
+      b.handleEl.style.paddingRight = (6 * scale) + 'px';
+      b.handleEl.style.marginTop    = (4 * scale) + 'px';
+    }
+    zoomLabel.textContent = Math.round(scale * 100) + '%';
+    updateCanvasTitle();
+  }
+
+  // ── 휠 줌 ────────────────────────────────────────────────
+  viewport.addEventListener('wheel', e => {
+    e.preventDefault();
+    const factor   = e.deltaY < 0 ? 1.08 : 0.93;
+    const newScale = Math.max(0.04, Math.min(12, scale * factor));
+    const vr = viewport.getBoundingClientRect();
+    const cx = e.clientX - vr.left;
+    const cy = e.clientY - vr.top;
+    tx = cx - (cx - tx) * (newScale / scale);
+    ty = cy - (cy - ty) * (newScale / scale);
+    scale = newScale;
+    refresh(); save();
+  }, { passive: false });
+
+  // ── 툴 모드 ──────────────────────────────────────────────
+  let currentTool = 'pointer'; // 'pointer' | 'select'
+  let currentColor = '#37352f'; // 현재 선택된 텍스트 색상
+
+  const btnPointer = document.getElementById('btn-pointer');
+  const btnSelect  = document.getElementById('btn-select');
+
+  // ── 색상 버튼 ─────────────────────────────────────────────
+  document.querySelectorAll('.color-tool-btn').forEach(btn => {
+    // mousedown에 preventDefault → contenteditable 포커스/선택 유지
+    btn.addEventListener('mousedown', e => e.preventDefault());
+
+    btn.addEventListener('click', () => {
+      currentColor = btn.dataset.color;
+      document.querySelectorAll('.color-tool-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+
+      // contenteditable 안에 선택된 텍스트가 있으면 그 부분만 색상 변경
+      const sel = window.getSelection();
+      if (sel && sel.rangeCount > 0) {
+        const node = sel.getRangeAt(0).commonAncestorContainer;
+        const editable = node.nodeType === 1
+          ? node.closest('[contenteditable]')
+          : node.parentElement?.closest('[contenteditable]');
+        if (editable) {
+          document.execCommand('foreColor', false, currentColor);
+          save();
+          return;
+        }
+      }
+
+      // 텍스트 선택 없음: 캔버스에서 선택된 블록 전체 색상 변경
+      for (const b of selected) {
+        if (b.titleEl) {
+          b.color = currentColor;
+          b.titleEl.style.color   = currentColor;
+          b.contentEl.style.color = currentColor;
+        }
+      }
+      save();
+    });
+  });
+
+function setTool(tool, keepSel = false) {
+    currentTool = tool;
+    btnPointer.classList.toggle('active', tool === 'pointer');
+    btnSelect.classList.toggle('active',  tool === 'select');
+    document.body.className = 'mode-' + tool;
+    // keepSel=true 이면 선택 유지 (그룹 이동 준비), 명시적 전환만 해제
+    if (!keepSel) clearSel();
+  }
+
+  btnPointer.addEventListener('click', () => setTool('pointer'));
+  btnSelect.addEventListener('click',  () => setTool('select'));
+
+  document.addEventListener('keydown', e => {
+    if (e.target.isContentEditable) return;
+    if (e.key === 'v' || e.key === 'V') setTool('pointer');
+    if (e.key === 's' || e.key === 'S') setTool('select');
+    if (e.key === 'Escape') setTool('pointer');
+
+    // 선택된 블록 일괄 삭제 (Delete / Backspace)
+    if ((e.key === 'Delete' || e.key === 'Backspace') && selected.size > 0) {
+      btnDeleteSelected.click();
+    }
+  });
+
+  // ── 선택 상태 관리 ───────────────────────────────────────
+  const selected = new Set();
+
+  const btnDeleteSelected = document.getElementById('btn-delete-selected');
+  const btnCopySelected   = document.getElementById('btn-copy-selected');
+  let clipboard = []; // 복사된 블록 스냅샷
+
+  function updateDeleteBtn() {
+    const active = selected.size > 0;
+    btnDeleteSelected.style.opacity     = active ? '1' : '0.3';
+    btnDeleteSelected.style.pointerEvents = active ? '' : 'none';
+    btnCopySelected.style.opacity       = active ? '1' : '0.3';
+    btnCopySelected.style.pointerEvents = active ? '' : 'none';
+  }
+
+  function copySelected() {
+    if (selected.size === 0) return;
+    clipboard = [...selected].map(b => {
+      if (blocks.includes(b)) {
+        return { type: 'text', wx: b.wx, wy: b.wy,
+          title: b.titleEl.innerHTML, content: b.contentEl.innerHTML, color: b.color };
+      } else if (imgBlocks.includes(b)) {
+        return { type: 'img', wx: b.wx, wy: b.wy,
+          src: b.src, w: b.w, h: b.h, label: b.label };
+      } else if (fileBlocks.includes(b)) {
+        return { type: 'file', wx: b.wx, wy: b.wy,
+          name: b.name, fileType: b.fileType, src: b.src };
+      }
+    }).filter(Boolean);
+  }
+
+  function pasteClipboard() {
+    if (clipboard.length === 0) return;
+    const OFFSET = 30;
+    clearSel();
+    for (const item of clipboard) {
+      if (item.type === 'text') {
+        const b = makeBlock(item.wx + OFFSET, item.wy + OFFSET);
+        b.titleEl.innerHTML   = item.title;
+        b.contentEl.innerHTML = item.content;
+        b.color = item.color;
+        b.titleEl.style.color   = item.color;
+        b.contentEl.style.color = item.color;
+        selectAdd(b);
+      } else if (item.type === 'img') {
+        const b = makeImgBlock(item.wx + OFFSET, item.wy + OFFSET,
+          item.src, item.w, item.h, item.label);
+        addStripCard(b);
+        selectAdd(b);
+      } else if (item.type === 'file') {
+        const b = makeFileBlock(item.wx + OFFSET, item.wy + OFFSET,
+          item.name, item.fileType, item.src);
+        addFileStripCard(b);
+        selectAdd(b);
+      }
+    }
+    refresh();
+    save();
+  }
+
+  btnCopySelected.addEventListener('click', () => {
+    copySelected();
+    pasteClipboard();
+  });
+
+  // Ctrl+C / Ctrl+V / Ctrl+Z
+  document.addEventListener('keydown', e => {
+    if (e.target.isContentEditable) return;
+    if ((e.ctrlKey || e.metaKey) && e.key === 'c' && selected.size > 0) {
+      copySelected();
+    }
+    if ((e.ctrlKey || e.metaKey) && e.key === 'v' && clipboard.length > 0) {
+      pasteClipboard();
+    }
+    if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
+      e.preventDefault();
+      performUndo();
+    }
+  });
+
+  function selectAdd(b)  { selected.add(b);    b.el.classList.add('selected');    updateDeleteBtn(); }
+  function selectDel(b)  { selected.delete(b); b.el.classList.remove('selected'); updateDeleteBtn(); }
+  function clearSel()    { [...selected].forEach(b => b.el.classList.remove('selected')); selected.clear(); updateDeleteBtn(); }
+
+  btnDeleteSelected.addEventListener('click', () => {
+    pushUndoSnapshot();
+    for (const b of [...selected]) {
+      b.el.remove();
+      if (b._stripCard) b._stripCard.remove();
+      const bi = blocks.indexOf(b);
+      if (bi !== -1) blocks.splice(bi, 1);
+      const ii = imgBlocks.indexOf(b);
+      if (ii !== -1) imgBlocks.splice(ii, 1);
+      const fi = fileBlocks.indexOf(b);
+      if (fi !== -1) fileBlocks.splice(fi, 1);
+    }
+    selected.clear();
+    updateDeleteBtn();
+    save();
+  });
+
+  // ── 상태 변수 ────────────────────────────────────────────
+  let panning = false, panSx, panSy, panTx, panTy;
+  let selecting = false, selSx, selSy;
+  let pendingGroupDrag = null; // { sx, sy } — 그룹 이동 대기 (클릭 vs 드래그 구분용)
+  const selBox = document.getElementById('sel-box');
+
+  viewport.addEventListener('mousedown', e => {
+    if (e.button !== 0) return;
+    if (e.target.isContentEditable) return;
+    if (e.target.closest('#bottom-bar, #toolbar')) return;
+
+    // 빈 캔버스 클릭 시 포커스 강제 해제 → 빈 블록 focusout 트리거
+    if (document.activeElement && document.activeElement.isContentEditable) {
+      document.activeElement.blur();
+    }
+
+    if (currentTool === 'pointer') {
+      if (e.target.closest('.block, .img-block')) return; // attachDrag가 처리
+
+      if (selected.size > 0) {
+        // ★ 선택된 항목 있음: 빈 캔버스 드래그 = 그룹 이동 / 클릭 = 해제
+        pendingGroupDrag = { sx: e.clientX, sy: e.clientY };
+      } else {
+        // 선택 없음: 패닝
+        panning = true;
+        panSx = e.clientX; panSy = e.clientY;
+        panTx = tx;        panTy = ty;
+        viewport.style.cursor = 'grabbing';
+      }
+    } else {
+      // 선택 모드: 러버밴드
+      if (e.target.closest('.block, .img-block')) return;
+      selecting = true;
+      selSx = e.clientX; selSy = e.clientY;
+      Object.assign(selBox.style, { left: selSx+'px', top: selSy+'px', width:'0', height:'0', display:'block' });
+      clearSel();
+    }
+    e.preventDefault();
+  });
+
+  document.addEventListener('mousemove', e => {
+    if (panning) {
+      tx = panTx + (e.clientX - panSx);
+      ty = panTy + (e.clientY - panSy);
+      refresh();
+      return;
+    }
+    if (pendingGroupDrag) {
+      // 4px 이상 이동하면 실제 그룹 드래그로 전환
+      if (Math.abs(e.clientX - pendingGroupDrag.sx) > 4 || Math.abs(e.clientY - pendingGroupDrag.sy) > 4) {
+        const origins = new Map([...selected].map(s => [s, { wx: s.wx, wy: s.wy }]));
+        dragState = { sx: pendingGroupDrag.sx, sy: pendingGroupDrag.sy, origins };
+        pendingGroupDrag = null;
+      }
+      return;
+    }
+    if (selecting) {
+      const x = Math.min(e.clientX, selSx), y = Math.min(e.clientY, selSy);
+      const w = Math.abs(e.clientX - selSx), h = Math.abs(e.clientY - selSy);
+      Object.assign(selBox.style, { left:x+'px', top:y+'px', width:w+'px', height:h+'px' });
+      const sr = { left:x, top:y, right:x+w, bottom:y+h };
+      for (const b of [...blocks, ...imgBlocks, ...fileBlocks]) {
+        const br = b.el.getBoundingClientRect();
+        const hit = br.right > sr.left && br.left < sr.right && br.bottom > sr.top && br.top < sr.bottom;
+        hit ? selectAdd(b) : selectDel(b);
+      }
+    }
+  });
+
+  document.addEventListener('mouseup', () => {
+    if (panning) {
+      panning = false;
+      viewport.style.cursor = '';
+      save();
+    }
+    if (pendingGroupDrag) {
+      // 드래그 없이 마우스업 = 단순 클릭 → 선택 해제
+      pendingGroupDrag = null;
+      clearSel();
+    }
+    if (selecting) {
+      selecting = false;
+      selBox.style.display = 'none';
+      if (selected.size > 0) setTool('pointer', true);
+    }
+  });
+
+  // ── 전역 드래그 상태 (블록별 리스너 대신 하나로 관리) ───
+  let dragState = null; // { sx, sy, origins: Map<block, {wx,wy}> }
+
+  document.addEventListener('mousemove', e => {
+    if (!dragState) return;
+    const dx = (e.clientX - dragState.sx) / scale;
+    const dy = (e.clientY - dragState.sy) / scale;
+    for (const [s, o] of dragState.origins) {
+      s.wx = o.wx + dx;
+      s.wy = o.wy + dy;
+    }
+    refresh();
+  });
+
+  document.addEventListener('mouseup', () => {
+    if (!dragState) return;
+    const wasGroup = dragState.origins.size > 1;
+    dragState = null;
+    // 그룹 이동 완료 후 선택 유지 (사용자가 어떤 것이 선택됐는지 확인 가능)
+    save();
+  });
+
+  function attachDrag(b, handleEl) {
+    handleEl.addEventListener('mousedown', e => {
+      // 핸들 드래그는 항상 단독 이동 — 그룹 선택 해제
+      clearSel();
+      const origins = new Map([[b, { wx: b.wx, wy: b.wy }]]);
+      dragState = { sx: e.clientX, sy: e.clientY, origins };
+      e.preventDefault(); e.stopPropagation();
+    });
+  }
+
+  // ── 텍스트 블록 생성 ─────────────────────────────────────
+  function makeBlock(wx, wy) {
+    const el = document.createElement('div');
+    el.className = 'block';
+
+    const handleEl = document.createElement('span');
+    handleEl.className = 'handle';
+    handleEl.innerHTML = '&#8942;&#8942;';
+
+    const bodyEl = document.createElement('div');
+    bodyEl.className = 'block-body';
+
+    const titleEl = document.createElement('div');
+    titleEl.className = 'block-title';
+    titleEl.contentEditable = 'true';
+    titleEl.spellcheck = false;
+    titleEl.dataset.ph = '제목';
+
+    const contentEl = document.createElement('div');
+    contentEl.className = 'block-content';
+    contentEl.contentEditable = 'true';
+    contentEl.spellcheck = false;
+    contentEl.dataset.ph = '내용을 입력하세요...';
+
+    const deleteBtn = document.createElement('button');
+    deleteBtn.className = 'delete-btn';
+    deleteBtn.innerHTML = '✕';
+    deleteBtn.title = '삭제';
+
+    bodyEl.appendChild(titleEl);
+    bodyEl.appendChild(contentEl);
+    el.appendChild(handleEl);
+    el.appendChild(bodyEl);
+    el.appendChild(deleteBtn);
+    world.appendChild(el);
+
+    const b = { el, handleEl, titleEl, contentEl, wx, wy, color: currentColor };
+    titleEl.style.color   = currentColor;
+    contentEl.style.color = currentColor;
+    blocks.push(b);
+
+    // 슬래시 커맨드: /제목<space> → 굵고 크게 / /설명<space> → 보통
+    contentEl.addEventListener('input', e => {
+      if (e.isComposing) return; // IME 조합 중엔 무시
+      const text = contentEl.innerText;
+      const m = text.match(/(\/제목|\/설명|\/섹션)[\s\u00a0]+$/);
+      if (!m) return;
+
+      const cmd = m[1];
+
+      // 마지막 텍스트 노드 탐색
+      const walker = document.createTreeWalker(contentEl, NodeFilter.SHOW_TEXT);
+      let lastNode = null;
+      while (walker.nextNode()) lastNode = walker.currentNode;
+      if (!lastNode) return;
+
+      // 텍스트 노드에서 커맨드 위치 찾아 Range로 직접 삭제
+      const nt = lastNode.textContent;
+      const idx = nt.search(/(\/제목|\/설명|\/섹션)[\s\u00a0]*$/);
+      if (idx < 0) return;
+
+      const sel = window.getSelection();
+      const delRange = document.createRange();
+      delRange.setStart(lastNode, idx);
+      delRange.setEnd(lastNode, nt.length);
+      delRange.deleteContents();
+      sel.removeAllRanges();
+      sel.addRange(delRange); // 삭제 지점에 커서
+
+      if (cmd === '/제목') {
+        const span = document.createElement('span');
+        span.style.fontSize   = '1.364em';
+        span.style.fontWeight = '700';
+        const zws = document.createTextNode('\u200B');
+        span.appendChild(zws);
+        sel.getRangeAt(0).insertNode(span);
+        const cur = document.createRange();
+        cur.setStart(zws, 1);
+        cur.collapse(true);
+        sel.removeAllRanges();
+        sel.addRange(cur);
+      } else if (cmd === '/섹션') {
+        const span = document.createElement('span');
+        span.style.fontSize   = '1.8em';
+        span.style.fontWeight = '800';
+        span.style.letterSpacing = '-0.5px';
+        const zws = document.createTextNode('\u200B');
+        span.appendChild(zws);
+        sel.getRangeAt(0).insertNode(span);
+        const cur = document.createRange();
+        cur.setStart(zws, 1);
+        cur.collapse(true);
+        sel.removeAllRanges();
+        sel.addRange(cur);
+      }
+      // /설명: 커맨드 삭제 후 커서 그대로 → 일반 크기로 타이핑
+
+      save();
+    });
+
+    // 블록 전체에서 포커스가 완전히 빠져나갈 때 내용 비어있으면 삭제
+    el.addEventListener('focusout', e => {
+      if (el.contains(e.relatedTarget)) return; // 블록 내부로 포커스 이동 시 무시
+      const titleEmpty   = (titleEl.innerText || '').replace(/\u200B/g, '').trim() === '';
+      const contentEmpty = (contentEl.innerText || '').replace(/\u200B/g, '').trim() === '';
+      if (titleEmpty && contentEmpty) {
+        pushUndoSnapshot();
+        el.remove();
+        blocks.splice(blocks.indexOf(b), 1);
+        save();
+      } else {
+        pushUndoSnapshot();
+        save();
+      }
+    });
+
+    // 붙여넣기 시 인라인 스타일 제거 → 순수 텍스트로만 삽입
+    function plainPaste(e) {
+      e.preventDefault();
+      const text = (e.clipboardData || window.clipboardData).getData('text/plain');
+      document.execCommand('insertText', false, text);
+    }
+    titleEl.addEventListener('paste', plainPaste);
+    contentEl.addEventListener('paste', plainPaste);
+
+    attachDrag(b, handleEl);
+    titleEl.addEventListener('input', save);
+    contentEl.addEventListener('input', save);
+
+    deleteBtn.addEventListener('click', e => {
+      e.stopPropagation();
+      pushUndoSnapshot();
+      el.remove();
+      blocks.splice(blocks.indexOf(b), 1);
+      save();
+    });
+
+    refresh();
+    return b;
+  }
+
+  // ── 이미지 블록 생성 (캔버스) ────────────────────────────
+  const THUMB_W = 100;
+
+  function makeImgBlock(wx, wy, src, w, h, label) {
+    const el = document.createElement('div');
+    el.className = 'img-block';
+
+    const handleEl = document.createElement('span');
+    handleEl.className = 'handle';
+    handleEl.innerHTML = '&#8942;&#8942;';
+
+    const innerEl = document.createElement('div');
+    innerEl.className = 'img-inner';
+
+    const imgEl = document.createElement('img');
+    imgEl.className = 'img-thumb';
+    imgEl.src = src;
+    imgEl.draggable = false;
+
+    const captionEl = document.createElement('div');
+    captionEl.className = 'img-caption';
+    captionEl.contentEditable = 'true';
+    captionEl.spellcheck = false;
+    if (label) captionEl.innerText = label;
+
+    const deleteBtn = document.createElement('button');
+    deleteBtn.className = 'delete-btn';
+    deleteBtn.innerHTML = '✕';
+    deleteBtn.title = '삭제';
+
+    innerEl.appendChild(imgEl);
+    innerEl.appendChild(captionEl);
+    el.appendChild(handleEl);
+    el.appendChild(innerEl);
+    el.appendChild(deleteBtn);
+    world.appendChild(el);
+
+    const b = { el, handleEl, imgEl, captionEl, wx, wy, src, w, h, label: label || '', stripLabelEl: null };
+    imgBlocks.push(b);
+    attachDrag(b, handleEl);
+
+    // 캔버스 캡션 편집 → 스트립 라벨 동기화
+    captionEl.addEventListener('input', () => {
+      b.label = captionEl.innerText;
+      if (b.stripLabelEl && b.stripLabelEl.innerText !== captionEl.innerText) {
+        b.stripLabelEl.innerText = captionEl.innerText;
+      }
+      save();
+    });
+
+    captionEl.addEventListener('mousedown', e => e.stopPropagation());
+    captionEl.addEventListener('click',     e => e.stopPropagation());
+
+    deleteBtn.addEventListener('click', e => {
+      e.stopPropagation();
+      pushUndoSnapshot();
+      el.remove();
+      // 하단 스트립에서도 제거
+      const idx = imgBlocks.indexOf(b);
+      if (idx !== -1) {
+        thumbStrip.children[idx] && thumbStrip.children[idx].remove();
+        imgBlocks.splice(idx, 1);
+      }
+      save();
+    });
+
+    refresh();
+    return b;
+  }
+
+  // ── 하단 스트립 카드 생성 ────────────────────────────────
+  function addStripCard(b) {
+    const card = document.createElement('div');
+    card.className = 'strip-card';
+
+    const img = document.createElement('img');
+    img.className = 'strip-card-img';
+    img.src = b.src;
+    img.title = '클릭 → 미리보기';
+    img.addEventListener('dragstart', e => e.preventDefault()); // 내부 드래그 방지
+
+    img.addEventListener('click', () => {
+      openImgModal(b.src, b.label || 'image.jpg');
+      // 캔버스에서도 해당 위치로 이동
+      const vw = viewport.clientWidth, vh = viewport.clientHeight;
+      tx = vw / 2 - (b.wx + b.w / 2) * scale;
+      ty = vh / 2 - (b.wy + b.h / 2) * scale;
+      refresh();
+    });
+
+    const labelEl = document.createElement('div');
+    labelEl.className = 'strip-label';
+    labelEl.contentEditable = 'true';
+    labelEl.spellcheck = false;
+    if (b.label) labelEl.innerText = b.label;
+
+    labelEl.addEventListener('input', () => {
+      b.label = labelEl.innerText;
+      // 캔버스 캡션에도 반영
+      if (b.captionEl.innerText !== labelEl.innerText) {
+        b.captionEl.innerText = labelEl.innerText;
+      }
+      save();
+    });
+
+    // 제목 클릭 시 이미지 이동 동작 방지
+    labelEl.addEventListener('mousedown', e => e.stopPropagation());
+    labelEl.addEventListener('click',     e => e.stopPropagation());
+
+    b.stripLabelEl = labelEl;
+
+    card.appendChild(img);
+    card.appendChild(labelEl);
+    thumbStrip.appendChild(card);
+
+    b._stripCard = card;
+
+    // 새로 추가되면 스트립 끝으로 스크롤
+    thumbStrip.scrollLeft = thumbStrip.scrollWidth;
+
+    b._focusLabel = () => {
+      setTimeout(() => {
+        labelEl.focus();
+        const range = document.createRange();
+        range.selectNodeContents(labelEl);
+        const sel = window.getSelection();
+        sel.removeAllRanges();
+        sel.addRange(range);
+      }, 80);
+    };
+  }
+
+  // ── 파일 스트립 카드 (하단 바) ───────────────────────────
+  function addFileStripCard(b) {
+    const card = document.createElement('div');
+    card.className = 'strip-card';
+
+    const iconEl = document.createElement('div');
+    iconEl.className = 'strip-file-icon ' + b.fileType;
+    const stripLabel = { excel:'XLS', pdf:'PDF', word:'DOC', ppt:'PPT', txt:'TXT' };
+    iconEl.textContent = stripLabel[b.fileType] || b.fileType.toUpperCase();
+    iconEl.title = b.fileType === 'pdf' ? '클릭 → PDF 열기' : '클릭 → 다운로드';
+    iconEl.addEventListener('dragstart', e => e.preventDefault()); // 내부 드래그 방지
+
+    iconEl.addEventListener('click', () => {
+      if (b.fileType === 'pdf') {
+        openPdfModal(b.src);
+      } else {
+        const a = document.createElement('a');
+        a.href = b.src;
+        a.download = b.name;
+        a.click();
+      }
+      // 캔버스에서 해당 블록으로 이동
+      const vw = viewport.clientWidth, vh = viewport.clientHeight;
+      tx = vw / 2 - (b.wx + 60) * scale;
+      ty = vh / 2 - (b.wy + 40) * scale;
+      refresh();
+    });
+
+    const labelEl = document.createElement('div');
+    labelEl.className = 'strip-label';
+    labelEl.style.cursor = 'default';
+    labelEl.textContent = b.name.length > 10 ? b.name.slice(0, 9) + '…' : b.name;
+    labelEl.title = b.name;
+
+    card.appendChild(iconEl);
+    card.appendChild(labelEl);
+    thumbStrip.appendChild(card);
+    thumbStrip.scrollLeft = thumbStrip.scrollWidth;
+
+    b._stripCard = card;
+  }
+
+  // ── 이미지 처리 ──────────────────────────────────────────
+  async function processImage(file) {
+    const defaultLabel = file.name.replace(/\.[^.]+$/, '');
+    const label = await askFileName(defaultLabel);
+    if (label === null) return; // 취소
+
+    const reader = new FileReader();
+    reader.onload = e => {
+      const img = new Image();
+      img.onload = () => {
+        const MAX = 800;
+        let iw = img.width, ih = img.height;
+        if (iw > MAX) { ih = Math.round(ih * MAX / iw); iw = MAX; }
+        if (ih > MAX) { iw = Math.round(iw * MAX / ih); ih = MAX; }
+
+        const cvs = document.createElement('canvas');
+        cvs.width = iw; cvs.height = ih;
+        cvs.getContext('2d').drawImage(img, 0, 0, iw, ih);
+        const src = cvs.toDataURL('image/jpeg', 0.82);
+
+        const worldW = THUMB_W;
+        const worldH = Math.round(THUMB_W * (ih / iw));
+
+        const vw = viewport.clientWidth;
+        const vh = viewport.clientHeight;
+        const wx = (vw / 2 - tx) / scale - worldW / 2 + (Math.random() - 0.5) * 60;
+        const wy = (vh / 2 - ty) / scale - worldH / 2 + (Math.random() - 0.5) * 60;
+
+        const b = makeImgBlock(wx, wy, src, worldW, worldH, label);
+        addStripCard(b);
+        save();
+      };
+      img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+  }
+
+  // ── 파일 블록 생성 (PDF / Excel) ─────────────────────────
+  function makeFileBlock(wx, wy, name, fileType, src) {
+    const el = document.createElement('div');
+    el.className = 'file-block';
+
+    const handleEl = document.createElement('span');
+    handleEl.className = 'handle';
+    handleEl.innerHTML = '&#8942;&#8942;';
+
+    const innerEl = document.createElement('div');
+    innerEl.className = 'file-inner';
+
+    const iconEl = document.createElement('div');
+    iconEl.className = 'file-icon ' + fileType;
+    const iconLabel = { excel:'XLS', pdf:'PDF', word:'DOC', ppt:'PPT', txt:'TXT' };
+    iconEl.textContent = iconLabel[fileType] || fileType.toUpperCase();
+
+    const nameEl = document.createElement('div');
+    nameEl.className = 'file-name';
+    nameEl.textContent = name;
+
+    const deleteBtn = document.createElement('button');
+    deleteBtn.className = 'delete-btn';
+    deleteBtn.innerHTML = '✕';
+    deleteBtn.title = '삭제';
+
+    innerEl.appendChild(iconEl);
+    innerEl.appendChild(nameEl);
+    el.appendChild(handleEl);
+    el.appendChild(innerEl);
+    el.appendChild(deleteBtn);
+    world.appendChild(el);
+
+    const b = { el, handleEl, innerEl, iconEl, nameEl, wx, wy, name, fileType, src };
+    fileBlocks.push(b);
+    attachDrag(b, handleEl);
+
+    // 캔버스 블록은 클릭 이벤트 없음 (하단 스트립에서만 열기)
+
+    deleteBtn.addEventListener('click', e => {
+      e.stopPropagation();
+      pushUndoSnapshot();
+      el.remove();
+      if (b._stripCard) b._stripCard.remove();
+      fileBlocks.splice(fileBlocks.indexOf(b), 1);
+      save();
+    });
+
+    refresh();
+    return b;
+  }
+
+  async function processFile(file) {
+    const ext = file.name.split('.').pop().toLowerCase();
+    const fileType = ['xls','xlsx','csv'].includes(ext)      ? 'excel'
+                   : ext === 'pdf'                            ? 'pdf'
+                   : ['doc','docx'].includes(ext)             ? 'word'
+                   : ['ppt','pptx'].includes(ext)             ? 'ppt'
+                   : ext === 'txt'                            ? 'txt'
+                   : 'other';
+
+    const defaultName = file.name.replace(/\.[^.]+$/, '');
+    const inputName = await askFileName(defaultName);
+    if (inputName === null) return; // 취소
+
+    const finalName = inputName + (inputName.includes('.') ? '' : '.' + ext);
+
+    // 5MB 초과 시 경고
+    if (file.size > 5 * 1024 * 1024) {
+      alert(`"${file.name}" 파일이 5MB를 초과합니다. 저장이 제한될 수 있습니다.`);
+    }
+
+    const reader = new FileReader();
+    reader.onload = e => {
+      const src = e.target.result;
+      const vw = viewport.clientWidth, vh = viewport.clientHeight;
+      const wx = (vw / 2 - tx) / scale - 60 + (Math.random() - 0.5) * 60;
+      const wy = (vh / 2 - ty) / scale - 40 + (Math.random() - 0.5) * 60;
+      const b = makeFileBlock(wx, wy, finalName, fileType, src);
+      addFileStripCard(b);
+      save();
+    };
+    reader.readAsDataURL(file);
+  }
+
+  // ── 파일 입력 ────────────────────────────────────────────
+  document.getElementById('upload-area').addEventListener('click', () => fileInput.click());
+
+  fileInput.addEventListener('change', e => {
+    for (const f of e.target.files) {
+      if (f.type.startsWith('image/')) processImage(f);
+      else processFile(f);
+    }
+    fileInput.value = '';
+  });
+
+  bottomBar.addEventListener('dragover', e => { e.preventDefault(); bottomBar.classList.add('drag-over'); });
+  bottomBar.addEventListener('dragleave', () => bottomBar.classList.remove('drag-over'));
+  bottomBar.addEventListener('drop', e => {
+    e.preventDefault();
+    bottomBar.classList.remove('drag-over');
+    if (!e.dataTransfer.files.length) return; // 내부 드래그 무시
+    for (const f of e.dataTransfer.files) {
+      if (f.type.startsWith('image/')) processImage(f);
+      else processFile(f);
+    }
+  });
+
+  // ── 초기 실행: 사이드바 + 현재 프로젝트 캔버스 로드 ──────
+  renderSidebar();
+  loadCanvas();
+
+  // ── 더블클릭 → 새 텍스트 블록 ───────────────────────────
+  viewport.addEventListener('dblclick', e => {
+    if (e.target.isContentEditable) return;
+    const vr = viewport.getBoundingClientRect();
+    const wx = (e.clientX - vr.left - tx) / scale;
+    const wy = (e.clientY - vr.top  - ty) / scale;
+    const b  = makeBlock(wx, wy);
+    b.contentEl.focus();
+    save();
+    hintEl.style.opacity = '0';
+  });
+
+  setTimeout(() => { hintEl.style.opacity = '0'; }, 5000);
+
+  // ── 전체 검색 (Ctrl+F / Cmd+F) ──────────────────────────
+  const searchModal   = document.getElementById('search-modal');
+  const searchInput   = document.getElementById('search-input');
+  const searchResults = document.getElementById('search-results');
+  const searchCount   = document.getElementById('search-count');
+
+  function openSearch() {
+    searchModal.style.display = 'flex';
+    searchInput.value = '';
+    searchResults.innerHTML = '';
+    searchCount.textContent = '';
+    searchInput.focus();
+  }
+
+  function closeSearch() {
+    searchModal.style.display = 'none';
+  }
+
+  // Ctrl+F / Cmd+F 가로채기
+  document.addEventListener('keydown', e => {
+    if ((e.ctrlKey || e.metaKey) && e.key === 'f') {
+      e.preventDefault();
+      openSearch();
+    }
+    if (e.key === 'Escape' && searchModal.style.display === 'flex') closeSearch();
+  });
+
+  searchModal.addEventListener('click', e => {
+    if (e.target === searchModal) closeSearch();
+  });
+
+  function stripHtml(html) {
+    const tmp = document.createElement('div');
+    tmp.innerHTML = html;
+    return tmp.innerText || '';
+  }
+
+  function highlight(text, query) {
+    if (!query) return text;
+    const escaped = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    return text.replace(new RegExp(escaped, 'gi'), m => `<mark style="background:#ffe66d;border-radius:2px;padding:0 1px;">${m}</mark>`);
+  }
+
+  function doSearch(query) {
+    searchResults.innerHTML = '';
+    if (!query.trim()) { searchCount.textContent = ''; return; }
+
+    // 현재 프로젝트 먼저 저장 (최신 상태 반영)
+    saveCanvas();
+    // projects 최신 목록으로 갱신
+    const allProjects = loadProjects();
+
+    const results = [];
+
+    for (const proj of allProjects) {
+      const raw = localStorage.getItem(canvasKey(proj.id));
+      if (!raw) continue;
+      let data;
+      try { data = JSON.parse(raw); } catch { continue; }
+
+      // 텍스트 블록
+      if (data.blocks) {
+        data.blocks.forEach((b, i) => {
+          const title   = stripHtml(b.title   || '');
+          const content = stripHtml(b.content || '');
+          const combined = title + ' ' + content;
+          if (combined.toLowerCase().includes(query.toLowerCase())) {
+            results.push({ projId: proj.id, projName: proj.name, type: 'block', idx: i,
+              label: title || '(제목 없음)',
+              preview: content.slice(0, 60) || '',
+              wx: b.wx, wy: b.wy });
+          }
+        });
+      }
+
+      // 이미지 블록
+      if (data.images) {
+        data.images.forEach((b, i) => {
+          const label = b.label || '';
+          if (label.toLowerCase().includes(query.toLowerCase())) {
+            results.push({ projId: proj.id, projName: proj.name, type: 'image', idx: i,
+              label: label || '이미지',
+              preview: '이미지',
+              wx: b.wx, wy: b.wy });
+          }
+        });
+      }
+
+      // 파일 블록
+      if (data.files) {
+        data.files.forEach((b, i) => {
+          const name = b.name || '';
+          if (name.toLowerCase().includes(query.toLowerCase())) {
+            results.push({ projId: proj.id, projName: proj.name, type: 'file', idx: i,
+              label: name,
+              preview: b.fileType?.toUpperCase() || '파일',
+              wx: b.wx, wy: b.wy });
+          }
+        });
+      }
+    }
+
+    searchCount.textContent = results.length ? `${results.length}개` : '결과 없음';
+
+    if (results.length === 0) {
+      searchResults.innerHTML = '<div style="padding:24px;text-align:center;color:#aaa;font-size:13px;">검색 결과가 없습니다</div>';
+      return;
+    }
+
+    // 프로젝트별로 그룹핑
+    const grouped = {};
+    for (const r of results) {
+      if (!grouped[r.projId]) grouped[r.projId] = { name: r.projName, items: [] };
+      grouped[r.projId].items.push(r);
+    }
+
+    for (const [projId, group] of Object.entries(grouped)) {
+      const header = document.createElement('div');
+      header.style.cssText = 'padding:8px 16px 4px;font-size:10px;font-weight:700;color:#aaa;letter-spacing:0.8px;text-transform:uppercase;';
+      header.textContent = group.name;
+      searchResults.appendChild(header);
+
+      for (const r of group.items) {
+        const row = document.createElement('div');
+        row.style.cssText = 'display:flex;align-items:center;gap:10px;padding:8px 16px;cursor:pointer;transition:background 0.1s;';
+        row.addEventListener('mouseenter', () => row.style.background = '#f7f6f3');
+        row.addEventListener('mouseleave', () => row.style.background = '');
+
+        const icon = document.createElement('div');
+        icon.style.cssText = 'width:28px;height:28px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:12px;flex-shrink:0;';
+        if (r.type === 'block')      { icon.style.background = '#f0efec'; icon.textContent = '📝'; }
+        else if (r.type === 'image') { icon.style.background = '#e8f4fd'; icon.textContent = '🖼'; }
+        else                         { icon.style.background = '#fde8e8'; icon.textContent = '📄'; }
+
+        const text = document.createElement('div');
+        text.style.cssText = 'flex:1;min-width:0;';
+        text.innerHTML = `<div style="font-size:13px;font-weight:600;color:#37352f;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${highlight(r.label, query)}</div>
+          ${r.preview ? `<div style="font-size:11px;color:#aaa;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:2px;">${highlight(r.preview, query)}</div>` : ''}`;
+
+        row.appendChild(icon);
+        row.appendChild(text);
+
+        row.addEventListener('click', () => {
+          closeSearch();
+          // 프로젝트 전환 (필요 시)
+          if (r.projId !== currentProjId) switchProject(r.projId);
+          // 해당 블록 위치로 이동 + 하이라이트
+          requestAnimationFrame(() => jumpToBlock(r));
+        });
+
+        searchResults.appendChild(row);
+      }
+    }
+  }
+
+  function jumpToBlock(r) {
+    const vw = viewport.clientWidth;
+    const vh = viewport.clientHeight;
+    // 블록을 화면 중앙으로
+    tx = vw / 2 - r.wx * scale;
+    ty = vh / 2 - r.wy * scale;
+    refresh();
+
+    // 해당 블록 찾아서 하이라이트
+    let targetEl = null;
+    if (r.type === 'block')      targetEl = blocks[r.idx]?.el;
+    else if (r.type === 'image') targetEl = imgBlocks[r.idx]?.el;
+    else                          targetEl = fileBlocks[r.idx]?.el;
+
+    if (!targetEl) return;
+    targetEl.style.transition = 'box-shadow 0.2s';
+    targetEl.style.boxShadow  = '0 0 0 3px #ffe66d, 0 0 20px rgba(255,230,109,0.6)';
+    setTimeout(() => {
+      targetEl.style.boxShadow = '';
+      setTimeout(() => { targetEl.style.transition = ''; }, 300);
+    }, 1800);
+  }
+
+  searchInput.addEventListener('input', () => doSearch(searchInput.value));
+  document.getElementById('btn-search-sidebar').addEventListener('click', () => openSearch());
+
+  // ── 사용법 모달 ──────────────────────────────────────────
+  const helpModal = document.getElementById('help-modal');
+  document.getElementById('btn-help').addEventListener('click', () => {
+    helpModal.style.display = 'flex';
+  });
+  document.getElementById('help-modal-close').addEventListener('click', () => {
+    helpModal.style.display = 'none';
+  });
+  helpModal.addEventListener('click', e => {
+    if (e.target === helpModal) helpModal.style.display = 'none';
+  });
+
+  // ── 전체 다운로드 (ZIP) ──────────────────────────────────
+  document.getElementById('btn-download').addEventListener('click', async () => {
+    const btn = document.getElementById('btn-download');
+    btn.style.opacity = '0.4';
+    btn.style.pointerEvents = 'none';
+
+    const zip = new JSZip();
+    const projName = document.querySelector('.proj-item.active .proj-name')?.textContent?.trim() || '캔버스';
+
+    // 전체 블록 위치 기반 캔버스 HTML 생성
+    const allItems = [
+      ...blocks.map(b => ({ type:'text', wx: b.wx, wy: b.wy })),
+      ...imgBlocks.map(b => ({ type:'img', wx: b.wx, wy: b.wy })),
+      ...fileBlocks.map(b => ({ type:'file', wx: b.wx, wy: b.wy })),
+    ];
+
+    if (allItems.length === 0) {
+      alert('캔버스에 내용이 없습니다.');
+      btn.style.opacity = '';
+      btn.style.pointerEvents = '';
+      return;
+    }
+
+    // 바운딩 박스 계산 (패딩 60px)
+    const PAD = 60;
+    const minX = Math.min(...allItems.map(i => i.wx)) - PAD;
+    const minY = Math.min(...allItems.map(i => i.wy)) - PAD;
+    const maxX = Math.max(...allItems.map(i => i.wx)) + 600;
+    const maxY = Math.max(...allItems.map(i => i.wy)) + 400;
+    const canvasW = maxX - minX;
+    const canvasH = maxY - minY;
+
+    // 텍스트 블록 HTML
+    const textItems = blocks.map(b => {
+      const title   = b.titleEl.innerHTML.trim();
+      const content = b.contentEl.innerHTML.trim();
+      const color   = b.color || '#37352f';
+      const x = b.wx - minX;
+      const y = b.wy - minY;
+      return `<div class="block" style="left:${x}px;top:${y}px;">
+    ${title ? `<div class="block-title" style="color:${color}">${title}</div>` : ''}
+    ${content ? `<div class="block-content" style="color:${color}">${content}</div>` : ''}
+  </div>`;
+    }).join('\n');
+
+    // 이미지 블록 HTML
+    const imgItems = imgBlocks.map((b, i) => {
+      const x = b.wx - minX;
+      const y = b.wy - minY;
+      const safeName = (b.label?.trim() || `image_${i+1}`).replace(/[/\\?%*:|"<>]/g, '_');
+      const ext = b.src.startsWith('data:image/png') ? 'png' : 'jpg';
+      const fname = `images/${safeName}.${ext}`;
+      return `<div class="img-block" style="left:${x}px;top:${y}px;">
+    <img src="${fname}" style="width:${b.w}px;height:${b.h}px;border-radius:3px;display:block;">
+    ${b.label ? `<div class="img-caption">${b.label}</div>` : ''}
+  </div>`;
+    }).join('\n');
+
+    // 파일 블록 HTML
+    const fileItems = fileBlocks.map((b, i) => {
+      const x = b.wx - minX;
+      const y = b.wy - minY;
+      const color = b.fileType === 'pdf' ? '#e03e3e' : b.fileType === 'excel' ? '#1d6f42' : '#888';
+      return `<div class="file-block" style="left:${x}px;top:${y}px;">
+    <div class="file-icon" style="background:${color}">${b.fileType === 'excel' ? 'XLS' : (b.fileType||'').toUpperCase()}</div>
+    <div class="file-name">${b.name || ''}</div>
+  </div>`;
+    }).join('\n');
+
+    const html = `<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <title>${projName}</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: #f0efec;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans KR', sans-serif;
+    }
+    #canvas {
+      position: relative;
+      width: ${canvasW}px;
+      height: ${canvasH}px;
+    }
+    .block {
+      position: absolute;
+      background: transparent;
+    }
+    .block-title {
+      font-size: 32px;
+      font-weight: 700;
+      line-height: 1.4;
+      white-space: nowrap;
+    }
+    .block-content {
+      font-size: 22px;
+      font-weight: 400;
+      line-height: 1.4;
+      white-space: pre-wrap;
+    }
+    .img-block {
+      position: absolute;
+    }
+    .img-caption {
+      font-size: 11px;
+      color: #555;
+      text-align: center;
+      margin-top: 5px;
+    }
+    .file-block {
+      position: absolute;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+      background: #fff;
+      border: 1px solid #e3e2de;
+      border-radius: 10px;
+      padding: 12px 10px;
+      min-width: 90px;
+    }
+    .file-icon {
+      width: 52px; height: 64px;
+      border-radius: 6px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 11px; font-weight: 800; color: #fff;
+    }
+    .file-name {
+      font-size: 10px; color: #37352f; text-align: center;
+      word-break: break-all; max-width: 90px;
+    }
+  </style>
+</head>
+<body>
+  <div id="canvas">
+    ${textItems}
+    ${imgItems}
+    ${fileItems}
+  </div>
+</body>
+</html>`;
+
+    zip.file('canvas.html', html);
+
+    // 이미지 파일들 → images/ 폴더
+    if (imgBlocks.length > 0) {
+      const imgFolder = zip.folder('images');
+      imgBlocks.forEach((b, i) => {
+        const name  = (b.label?.trim() || `image_${i + 1}`).replace(/[/\\?%*:|"<>]/g, '_');
+        const ext   = b.src.startsWith('data:image/png') ? 'png' : 'jpg';
+        const data  = b.src.split(',')[1];
+        imgFolder.file(`${name}.${ext}`, data, { base64: true });
+      });
+    }
+
+    // PDF/Excel 등 → files/ 폴더
+    if (fileBlocks.length > 0) {
+      const fileFolder = zip.folder('files');
+      fileBlocks.forEach((b, i) => {
+        const safeName = (b.name || `file_${i + 1}`).replace(/[/\\?%*:|"<>]/g, '_');
+        const data = b.src.split(',')[1];
+        fileFolder.file(safeName, data, { base64: true });
+      });
+    }
+
+    const blob = await zip.generateAsync({ type: 'blob' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `${projName}.zip`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+
+    btn.style.opacity = '';
+    btn.style.pointerEvents = '';
+  });
+</script>
+
+</body>
+</html>
