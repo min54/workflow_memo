@@ -1901,16 +1901,25 @@ function setTool(tool, keepSel = false) {
     b._stripCard = card;
   }
 
+  // ── Storage 업로드 헬퍼 ──────────────────────────────────
+  async function uploadToStorage(blob, fileName) {
+    const path = `${currentProjId}/${Date.now()}_${fileName}`;
+    const { error } = await sb.storage.from('canvas-files').upload(path, blob, { upsert: true });
+    if (error) throw error;
+    const { data } = sb.storage.from('canvas-files').getPublicUrl(path);
+    return data.publicUrl;
+  }
+
   // ── 이미지 처리 ──────────────────────────────────────────
   async function processImage(file) {
     const defaultLabel = file.name.replace(/\.[^.]+$/, '');
     const label = await askFileName(defaultLabel);
-    if (label === null) return; // 취소
+    if (label === null) return;
 
     const reader = new FileReader();
-    reader.onload = e => {
+    reader.onload = async e => {
       const img = new Image();
-      img.onload = () => {
+      img.onload = async () => {
         const MAX = 800;
         let iw = img.width, ih = img.height;
         if (iw > MAX) { ih = Math.round(ih * MAX / iw); iw = MAX; }
@@ -1919,19 +1928,22 @@ function setTool(tool, keepSel = false) {
         const cvs = document.createElement('canvas');
         cvs.width = iw; cvs.height = ih;
         cvs.getContext('2d').drawImage(img, 0, 0, iw, ih);
-        const src = cvs.toDataURL('image/jpeg', 0.82);
 
-        const worldW = THUMB_W;
-        const worldH = Math.round(THUMB_W * (ih / iw));
-
-        const vw = viewport.clientWidth;
-        const vh = viewport.clientHeight;
-        const wx = (vw / 2 - tx) / scale - worldW / 2 + (Math.random() - 0.5) * 60;
-        const wy = (vh / 2 - ty) / scale - worldH / 2 + (Math.random() - 0.5) * 60;
-
-        const b = makeImgBlock(wx, wy, src, worldW, worldH, label);
-        addStripCard(b);
-        save();
+        cvs.toBlob(async blob => {
+          try {
+            const src = await uploadToStorage(blob, (label || 'image') + '.jpg');
+            const worldW = THUMB_W;
+            const worldH = Math.round(THUMB_W * (ih / iw));
+            const vw = viewport.clientWidth, vh = viewport.clientHeight;
+            const wx = (vw / 2 - tx) / scale - worldW / 2 + (Math.random() - 0.5) * 60;
+            const wy = (vh / 2 - ty) / scale - worldH / 2 + (Math.random() - 0.5) * 60;
+            const b = makeImgBlock(wx, wy, src, worldW, worldH, label);
+            addStripCard(b);
+            save();
+          } catch (err) {
+            alert('이미지 업로드 실패: ' + err.message);
+          }
+        }, 'image/jpeg', 0.82);
       };
       img.src = e.target.result;
     };
@@ -2011,26 +2023,21 @@ function setTool(tool, keepSel = false) {
 
     const defaultName = file.name.replace(/\.[^.]+$/, '');
     const inputName = await askFileName(defaultName);
-    if (inputName === null) return; // 취소
+    if (inputName === null) return;
 
     const finalName = inputName + (inputName.includes('.') ? '' : '.' + ext);
 
-    // 5MB 초과 시 경고
-    if (file.size > 5 * 1024 * 1024) {
-      alert(`"${file.name}" 파일이 5MB를 초과합니다. 저장이 제한될 수 있습니다.`);
-    }
-
-    const reader = new FileReader();
-    reader.onload = e => {
-      const src = e.target.result;
+    try {
+      const src = await uploadToStorage(file, finalName);
       const vw = viewport.clientWidth, vh = viewport.clientHeight;
       const wx = (vw / 2 - tx) / scale - 60 + (Math.random() - 0.5) * 60;
       const wy = (vh / 2 - ty) / scale - 40 + (Math.random() - 0.5) * 60;
       const b = makeFileBlock(wx, wy, finalName, fileType, src);
       addFileStripCard(b);
       save();
-    };
-    reader.readAsDataURL(file);
+    } catch (err) {
+      alert('파일 업로드 실패: ' + err.message);
+    }
   }
 
   // ── 파일 입력 ────────────────────────────────────────────
