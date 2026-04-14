@@ -3667,11 +3667,7 @@ function setTool(tool, keepSel = false) {
         card.addEventListener('click', async () => {
           textOverlay.classList.remove('open');
           if (proj.id !== currentProjId) {
-            currentProjId = proj.id;
-            document.querySelectorAll('.proj-item').forEach(el =>
-              el.classList.toggle('active', el.dataset.id === proj.id));
-            await loadCanvas();
-            updateCanvasTitle();
+            await switchProject(proj.id);
           }
           // 해당 블록 위치로 이동
           const vw = viewport.clientWidth, vh = viewport.clientHeight;
