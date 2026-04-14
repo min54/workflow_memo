@@ -3313,6 +3313,13 @@ function setTool(tool, keepSel = false) {
   const searchCount   = document.getElementById('search-count');
 
   function openSearch() {
+    // 텍스트 전체보기가 열려있으면 닫기
+    const ovEl = document.getElementById('text-overview-overlay');
+    if (ovEl?.classList.contains('open')) {
+      ovEl.classList.remove('open');
+      document.querySelectorAll('.proj-item').forEach(el =>
+        el.classList.toggle('active', el.dataset.id === currentProjId));
+    }
     searchModal.style.display = 'flex';
     searchInput.value = '';
     searchResults.innerHTML = '';
