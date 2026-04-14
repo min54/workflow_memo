@@ -3688,11 +3688,21 @@ function setTool(tool, keepSel = false) {
     textOvWorld.style.transform = `scale(${ovScale}) translate(${ovTx / ovScale}px, ${ovTy / ovScale}px)`;
   }
 
+  function closeTextOverview() {
+    textOverlay.classList.remove('open');
+    // 원래 선택 프로젝트 active 복원
+    document.querySelectorAll('.proj-item').forEach(el =>
+      el.classList.toggle('active', el.dataset.id === currentProjId));
+  }
+
   async function openTextOverview() {
     textOvWorld.innerHTML = '';
     textOverlay.classList.add('open');
     ovScale = 0.75; ovTx = 60; ovTy = 60;
     applyOvTransform();
+
+    // 전체보기 중엔 선택된 프로젝트 없음
+    document.querySelectorAll('.proj-item').forEach(el => el.classList.remove('active'));
 
     // 현재 캔버스 먼저 저장
     await saveCanvas();
@@ -3782,7 +3792,7 @@ function setTool(tool, keepSel = false) {
     }
   }
 
-  textOvCloseBtn.addEventListener('click', () => textOverlay.classList.remove('open'));
+  textOvCloseBtn.addEventListener('click', () => closeTextOverview());
 
   // 카드 바깥 클릭 시 접기
   textOvCanvas.addEventListener('click', e => {
@@ -3846,7 +3856,7 @@ function setTool(tool, keepSel = false) {
   // ESC 닫기
   document.addEventListener('keydown', e => {
     if (e.key === 'Escape' && textOverlay.classList.contains('open'))
-      textOverlay.classList.remove('open');
+      closeTextOverview();
   });
 
 </script>
