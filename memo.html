@@ -1250,11 +1250,15 @@
       border-radius: 14px;
       overflow: hidden;
       box-shadow: 0 8px 32px rgba(0,0,0,0.28);
-      display: none;
       flex-direction: column;
       width: 300px;
+      opacity: 0;
+      pointer-events: none;
+      transform: translateY(8px) scale(0.97);
+      transition: opacity 0.22s ease, transform 0.22s ease;
+      display: flex;
     }
-    #yt-panel.open { display: flex; }
+    #yt-panel.open { opacity: 1; pointer-events: all; transform: translateY(0) scale(1); }
     #yt-panel-header {
       display: flex; align-items: center; justify-content: space-between;
       padding: 10px 14px;
@@ -4531,7 +4535,7 @@ function setTool(tool, keepSel = false) {
 
 <!-- 미니 유튜브 플레이어 -->
 <div id="yt-player-wrap">
-  <div id="yt-panel" class="open">
+  <div id="yt-panel">
     <div id="yt-panel-header">
       <span id="yt-panel-title">lofi hip hop radio</span>
       <button id="yt-close-btn" title="닫기">✕</button>
@@ -4600,12 +4604,28 @@ function setTool(tool, keepSel = false) {
       if (e.key === 'Enter') goBtn.click();
     });
 
-    btn.addEventListener('click', () => {
-      const isOpen = panel.classList.toggle('open');
-      if (!isOpen) iframe.src = '';
-      else iframe.src = embedSrc(currentId);
-    });
+    const wrap = document.getElementById('yt-player-wrap');
+    let hideTimer = null;
+
+    function showPanel() {
+      clearTimeout(hideTimer);
+      if (!panel.classList.contains('open')) {
+        panel.classList.add('open');
+        iframe.src = embedSrc(currentId);
+      }
+    }
+    function hidePanel() {
+      hideTimer = setTimeout(() => {
+        panel.classList.remove('open');
+        iframe.src = '';
+      }, 300);
+    }
+
+    wrap.addEventListener('mouseenter', showPanel);
+    wrap.addEventListener('mouseleave', hidePanel);
+
     closeB.addEventListener('click', () => {
+      clearTimeout(hideTimer);
       panel.classList.remove('open');
       iframe.src = '';
     });
