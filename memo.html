@@ -3824,8 +3824,14 @@ function setTool(tool, keepSel = false) {
   });
 
   // 오버레이 줌
+  let ovWheelTimer = null;
   textOvCanvas.addEventListener('wheel', e => {
     e.preventDefault();
+    // 휠 중 transition 제거 → 흔들림 방지
+    textOvWorld.style.transition = 'none';
+    clearTimeout(ovWheelTimer);
+    ovWheelTimer = setTimeout(() => { textOvWorld.style.transition = ''; }, 150);
+
     const rect  = textOvCanvas.getBoundingClientRect();
     const mx    = e.clientX - rect.left;
     const my    = e.clientY - rect.top;
