@@ -1281,7 +1281,6 @@
     <button id="text-overview-close">✕</button>
   </div>
   <div id="text-overview-canvas">
-    <button id="ov-back-btn">← 목록으로</button>
     <div id="text-overview-world"></div>
   </div>
 </div>
@@ -3717,23 +3716,16 @@ function setTool(tool, keepSel = false) {
           card.appendChild(c);
         }
 
-        // 각 카드에 이동 버튼 추가
-        const gotoBtn = document.createElement('button');
-        gotoBtn.className = 'ov-card-goto';
-        gotoBtn.textContent = '이 블록으로 이동 →';
-        gotoBtn.addEventListener('click', async e => {
-          e.stopPropagation();
+        // 클릭 → 해당 프로젝트·블록으로 이동
+        const projId = proj.id, bwx = b.wx, bwy = b.wy;
+        card.addEventListener('click', async () => {
           textOverlay.classList.remove('open');
-          if (proj.id !== currentProjId) await switchProject(proj.id);
+          if (projId !== currentProjId) await switchProject(projId);
           const vw = viewport.clientWidth, vh = viewport.clientHeight;
-          tx = vw / 2 - (b.wx + 150) * scale;
-          ty = vh / 2 - (b.wy + 60)  * scale;
+          tx = vw / 2 - (bwx + 150) * scale;
+          ty = vh / 2 - (bwy + 60)  * scale;
           refresh();
         });
-        card.appendChild(gotoBtn);
-
-        // 클릭 → 해당 카드로 줌인 (offsetLeft/Top으로 실제 위치 읽기)
-        card.addEventListener('click', () => zoomToCard(card));
 
         textOvWorld.appendChild(card);
         // offsetHeight 측정 (렌더링 후)
@@ -3745,59 +3737,7 @@ function setTool(tool, keepSel = false) {
     }
   }
 
-  // ── 카드 줌인/아웃 ────────────────────────────────────────
-  const ovBackBtn = document.getElementById('ov-back-btn');
-  let ovZoomedCard = null;
-  let ovSavedScale, ovSavedTx, ovSavedTy;
-
-  function zoomToCard(card) {
-    // 이미 줌된 카드 복원
-    if (ovZoomedCard && ovZoomedCard !== card) zoomOut(false);
-
-    ovSavedScale = ovScale;
-    ovSavedTx    = ovTx;
-    ovSavedTy    = ovTy;
-
-    // 카드 실제 위치 (world 좌표)
-    const cardLeft = card.offsetLeft;
-    const cardTop  = card.offsetTop;
-    const cardW    = card.offsetWidth  || 280;
-    const cardH    = card.offsetHeight || 180;
-
-    // 카드를 뷰포트 중앙에 맞게 줌
-    const rect   = textOvCanvas.getBoundingClientRect();
-    const targetScale = Math.min(1.6, rect.width / (cardW + 100));
-    const cardCx = cardLeft + cardW / 2;
-    const cardCy = cardTop  + cardH / 2;
-    const newTx  = rect.width  / 2 - cardCx * targetScale;
-    const newTy  = rect.height / 2 - cardCy * targetScale;
-
-    ovScale = targetScale; ovTx = newTx; ovTy = newTy;
-    applyOvTransform();
-
-    card.classList.add('zoomed');
-    ovZoomedCard = card;
-    ovBackBtn.classList.add('visible');
-
-    // 패닝 비활성화
-    textOvCanvas.style.pointerEvents = 'none';
-    card.style.pointerEvents = 'auto';
-    ovBackBtn.style.pointerEvents = 'auto';
-  }
-
-  function zoomOut(animate = true) {
-    if (!animate) textOvWorld.classList.add('no-transition');
-    ovScale = ovSavedScale; ovTx = ovSavedTx; ovTy = ovSavedTy;
-    applyOvTransform();
-    if (!animate) requestAnimationFrame(() => textOvWorld.classList.remove('no-transition'));
-
-    if (ovZoomedCard) { ovZoomedCard.classList.remove('zoomed'); ovZoomedCard = null; }
-    ovBackBtn.classList.remove('visible');
-    textOvCanvas.style.pointerEvents = '';
-  }
-
-  ovBackBtn.addEventListener('click', () => zoomOut());
-  textOvCloseBtn.addEventListener('click', () => { zoomOut(false); textOverlay.classList.remove('open'); });
+  textOvCloseBtn.addEventListener('click', () => textOverlay.classList.remove('open'));
   document.getElementById('btn-text-overview').addEventListener('click', openTextOverview);
 
   // 오버레이 패닝
