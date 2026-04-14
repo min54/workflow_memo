@@ -1195,26 +1195,23 @@
     #login-bg-text {
       position: absolute;
       inset: 0;
-      display: flex;
-      flex-direction: column;
-      align-items: flex-start;
-      justify-content: center;
-      padding: 60px 80px;
       pointer-events: none;
       user-select: none;
-      filter: url(#lq-filter);
+      overflow: hidden;
     }
     .lbt-line {
+      position: absolute;
       font-family: 'Georgia', 'Times New Roman', serif;
-      color: rgba(55, 53, 47, 0.22);
-      line-height: 1.15;
+      color: rgba(55, 53, 47, 0.38);
+      line-height: 1;
       letter-spacing: -0.02em;
       white-space: nowrap;
+      will-change: transform;
     }
     .lbt-line.xl  { font-size: clamp(48px, 7vw, 96px); font-weight: 700; }
-    .lbt-line.lg  { font-size: clamp(28px, 4vw, 56px); font-weight: 400; font-style: italic; }
-    .lbt-line.sm  { font-size: clamp(14px, 2vw, 22px); font-weight: 300; letter-spacing: 0.12em; margin-top: 18px; color: rgba(55,53,47,0.16); }
-    .lbt-line.xs  { font-size: clamp(11px, 1.4vw, 16px); font-weight: 300; letter-spacing: 0.22em; color: rgba(55,53,47,0.12); }
+    .lbt-line.lg  { font-size: clamp(28px, 4vw, 56px); font-weight: 400; font-style: italic; color: rgba(55,53,47,0.30); }
+    .lbt-line.sm  { font-size: clamp(14px, 2vw, 22px); font-weight: 300; letter-spacing: 0.12em; color: rgba(55,53,47,0.22); }
+    .lbt-line.xs  { font-size: clamp(11px, 1.4vw, 16px); font-weight: 300; letter-spacing: 0.22em; color: rgba(55,53,47,0.16); }
     @keyframes appFadeIn {
       from { opacity: 0; transform: translateY(6px); }
       to   { opacity: 1; transform: translateY(0); }
@@ -1706,6 +1703,82 @@
     setTimeout(() => { loginOverlay.style.display = 'none'; }, 260);
   } else {
     setTimeout(() => loginIdEl.focus(), 50);
+    initFloatingText();
+  }
+
+  function initFloatingText() {
+    const lines = Array.from(document.querySelectorAll('.lbt-line'));
+    const W = window.innerWidth, H = window.innerHeight;
+
+    // 초기 위치 세팅 (offsetWidth 확보 위해 100ms 후)
+    setTimeout(() => {
+      const particles = lines.map(el => {
+        const w = el.offsetWidth || 200, h = el.offsetHeight || 40;
+        const x = 40 + Math.random() * Math.max(1, W - w - 80);
+        const y = 40 + Math.random() * Math.max(1, H - h - 80);
+        el.style.left = '0px';
+        el.style.top  = '0px';
+        el.style.transform = `translate(${x}px,${y}px)`;
+        return {
+          el, w, h, x, y,
+          vx: (Math.random() - 0.5) * 0.5,
+          vy: (Math.random() - 0.5) * 0.5,
+          ox: Math.random() * Math.PI * 2,
+          oy: Math.random() * Math.PI * 2,
+          freq: 0.00025 + Math.random() * 0.0003,
+          amp: 18 + Math.random() * 22,
+        };
+      });
+
+      let mx = -9999, my = -9999;
+      const REPEL_R = 220, REPEL_F = 10, DAMP = 0.88, MAX_V = 12;
+
+      loginOverlay.addEventListener('mousemove', e => { mx = e.clientX; my = e.clientY; });
+      loginOverlay.addEventListener('mouseleave', () => { mx = -9999; my = -9999; });
+
+      let alive = true;
+      loginBtnEl.addEventListener('click', () => { alive = false; });
+
+      function tick(t) {
+        if (!alive) return;
+        const W2 = window.innerWidth, H2 = window.innerHeight;
+
+        particles.forEach(p => {
+          // gentle float
+          const fx = Math.sin(t * p.freq + p.ox) * p.amp;
+          const fy = Math.cos(t * p.freq * 0.65 + p.oy) * p.amp * 0.55;
+
+          // mouse repulsion
+          const cx = p.x + p.w / 2, cy = p.y + p.h / 2;
+          const dx = cx - mx, dy = cy - my;
+          const dist = Math.sqrt(dx * dx + dy * dy);
+          if (dist < REPEL_R && dist > 0) {
+            const force = ((REPEL_R - dist) / REPEL_R) * REPEL_F;
+            p.vx += (dx / dist) * force;
+            p.vy += (dy / dist) * force;
+          }
+
+          p.vx *= DAMP;
+          p.vy *= DAMP;
+          const spd = Math.sqrt(p.vx * p.vx + p.vy * p.vy);
+          if (spd > MAX_V) { p.vx = p.vx / spd * MAX_V; p.vy = p.vy / spd * MAX_V; }
+
+          p.x += p.vx;
+          p.y += p.vy;
+
+          // bounce
+          if (p.x < 0)          { p.x = 0;          p.vx =  Math.abs(p.vx); }
+          if (p.y < 0)          { p.y = 0;          p.vy =  Math.abs(p.vy); }
+          if (p.x + p.w > W2)   { p.x = W2 - p.w;  p.vx = -Math.abs(p.vx); }
+          if (p.y + p.h > H2)   { p.y = H2 - p.h;  p.vy = -Math.abs(p.vy); }
+
+          p.el.style.transform = `translate(${p.x + fx}px,${p.y + fy}px)`;
+        });
+
+        requestAnimationFrame(tick);
+      }
+      requestAnimationFrame(tick);
+    }, 120);
   }
 
   // 현재 로그인한 유저의 owner ID
