@@ -759,9 +759,86 @@
       transition: opacity 0.5s;
       white-space: nowrap;
     }
+
+    /* ── 로그인 오버레이 ── */
+    #login-overlay {
+      position: fixed;
+      inset: 0;
+      background: #f0efec;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 99999;
+    }
+
+    #login-box {
+      background: #fff;
+      border: 1px solid #e3e2de;
+      border-radius: 14px;
+      padding: 40px 36px;
+      width: 320px;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.08);
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    #login-box h2 {
+      font-size: 20px;
+      font-weight: 700;
+      color: #37352f;
+      text-align: center;
+      margin-bottom: 4px;
+    }
+
+    #login-box input {
+      width: 100%;
+      padding: 10px 14px;
+      border: 1.5px solid #e3e2de;
+      border-radius: 8px;
+      font-size: 14px;
+      font-family: inherit;
+      color: #37352f;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+    #login-box input:focus { border-color: #37352f; }
+
+    #login-btn {
+      width: 100%;
+      padding: 11px;
+      background: #37352f;
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      font-size: 14px;
+      font-family: inherit;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    #login-btn:hover { background: #1a1915; }
+
+    #login-error {
+      font-size: 12px;
+      color: #e03e3e;
+      text-align: center;
+      min-height: 16px;
+    }
   </style>
 </head>
 <body>
+
+<!-- 로그인 오버레이 -->
+<div id="login-overlay">
+  <div id="login-box">
+    <h2>🔒 워크플로우</h2>
+    <input id="login-id" type="text" placeholder="아이디" autocomplete="username" />
+    <input id="login-pw" type="password" placeholder="패스워드" autocomplete="current-password" />
+    <button id="login-btn">로그인</button>
+    <div id="login-error"></div>
+  </div>
+</div>
 
 <!-- 좌측 사이드바 -->
 <div id="sidebar">
@@ -1046,6 +1123,39 @@
   function openPdfModal(src) {
     pdfFrame.src = src;
     pdfModal.style.display = 'flex';
+  }
+
+  // ── 로그인 ───────────────────────────────────────────────
+  const LOGIN_ID = '1';
+  const LOGIN_PW = '1';
+  const AUTH_KEY = 'wf_auth';
+
+  const loginOverlay = document.getElementById('login-overlay');
+  const loginIdEl    = document.getElementById('login-id');
+  const loginPwEl    = document.getElementById('login-pw');
+  const loginBtnEl   = document.getElementById('login-btn');
+  const loginErrEl   = document.getElementById('login-error');
+
+  function tryLogin() {
+    if (loginIdEl.value === LOGIN_ID && loginPwEl.value === LOGIN_PW) {
+      sessionStorage.setItem(AUTH_KEY, '1');
+      loginOverlay.style.display = 'none';
+    } else {
+      loginErrEl.textContent = '아이디 또는 패스워드가 올바르지 않습니다.';
+      loginPwEl.value = '';
+      loginPwEl.focus();
+    }
+  }
+
+  loginBtnEl.addEventListener('click', tryLogin);
+  loginIdEl.addEventListener('keydown', e => { if (e.key === 'Enter') loginPwEl.focus(); });
+  loginPwEl.addEventListener('keydown', e => { if (e.key === 'Enter') tryLogin(); });
+
+  // 이미 로그인된 세션이면 바로 숨김
+  if (sessionStorage.getItem(AUTH_KEY) === '1') {
+    loginOverlay.style.display = 'none';
+  } else {
+    setTimeout(() => loginIdEl.focus(), 50);
   }
 
   // ── Supabase 클라이언트 ──────────────────────────────────
@@ -1529,8 +1639,8 @@
 
   // ── 새 폴더 추가 ────────────────────────────────────────────
   document.getElementById('add-folder-btn').addEventListener('click', async () => {
-    const f = { id: 'fold_' + Date.now(), name: '새 폴더', collapsed: false };
-    await sb.from('folders').insert({ id: f.id, name: f.name, collapsed: false });
+    const f = { id: 'fold_' + Date.now(), name: '새 폴더', collapsed: true };
+    await sb.from('folders').insert({ id: f.id, name: f.name, collapsed: true });
     folders.push(f);
     renderSidebar();
     setTimeout(() => {
