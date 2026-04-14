@@ -1554,9 +1554,9 @@
   }
 
   // ── 로그인 ───────────────────────────────────────────────
-  const LOGIN_ID = '1';
-  const LOGIN_PW = '1';
-  const AUTH_KEY = 'wf_auth';
+  const ACCOUNTS = { '1': '1', '2': '2' }; // { id: pw }
+  const AUTH_KEY  = 'wf_auth';
+  const OWNER_KEY = 'wf_owner';
 
   const loginOverlay = document.getElementById('login-overlay');
   const loginIdEl    = document.getElementById('login-id');
@@ -1565,8 +1565,11 @@
   const loginErrEl   = document.getElementById('login-error');
 
   function tryLogin() {
-    if (loginIdEl.value === LOGIN_ID && loginPwEl.value === LOGIN_PW) {
-      sessionStorage.setItem(AUTH_KEY, '1');
+    const id = loginIdEl.value.trim();
+    const pw = loginPwEl.value;
+    if (ACCOUNTS[id] && ACCOUNTS[id] === pw) {
+      sessionStorage.setItem(AUTH_KEY,  '1');
+      sessionStorage.setItem(OWNER_KEY, id);  // '1' 또는 '2'
       loginOverlay.style.opacity = '0';
       setTimeout(() => { loginOverlay.style.display = 'none'; }, 460);
     } else {
@@ -1589,18 +1592,21 @@
     setTimeout(() => loginIdEl.focus(), 50);
   }
 
+  // 현재 로그인한 유저의 owner ID
+  const currentOwner = sessionStorage.getItem(OWNER_KEY) || '1';
+
   // ── Supabase 클라이언트 ──────────────────────────────────
   const SUPABASE_URL = 'https://kogavwpllfiemnzfpqkt.supabase.co';
   const SUPABASE_KEY = 'sb_publishable_9_c0u1si3dDUTAp0kBmzJw_6DP0vHgS';
   const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
   async function loadProjects() {
-    const { data } = await sb.from('projects').select('*').order('created_at');
+    const { data } = await sb.from('projects').select('*').eq('owner', currentOwner).order('created_at');
     return (data || []).sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
   }
 
   async function loadFolders() {
-    const { data } = await sb.from('folders').select('*').order('created_at');
+    const { data } = await sb.from('folders').select('*').eq('owner', currentOwner).order('created_at');
     return (data || []).sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
   }
 
@@ -2172,7 +2178,7 @@
   // ── 새 프로젝트 추가 ────────────────────────────────────────
   document.getElementById('add-project-btn').addEventListener('click', async () => {
     const p = { id: 'proj_' + Date.now(), name: '새 프로젝트', folder_id: null };
-    await sb.from('projects').insert({ id: p.id, name: p.name });
+    await sb.from('projects').insert({ id: p.id, name: p.name, owner: currentOwner });
     projects.push(p);
     await switchProject(p.id);
     setTimeout(() => {
@@ -2185,7 +2191,7 @@
   // ── 새 폴더 추가 ────────────────────────────────────────────
   document.getElementById('add-folder-btn').addEventListener('click', async () => {
     const f = { id: 'fold_' + Date.now(), name: '새 폴더', collapsed: true };
-    await sb.from('folders').insert({ id: f.id, name: f.name, collapsed: true });
+    await sb.from('folders').insert({ id: f.id, name: f.name, collapsed: true, owner: currentOwner });
     folders.push(f);
     renderSidebar();
     setTimeout(() => {
@@ -3391,7 +3397,7 @@ function setTool(tool, keepSel = false) {
 
       if (projects.length === 0) {
         const def = { id: 'proj_' + Date.now(), name: '프로젝트 1', folder_id: null };
-        const { error } = await sb.from('projects').insert({ id: def.id, name: def.name });
+        const { error } = await sb.from('projects').insert({ id: def.id, name: def.name, owner: currentOwner });
         if (error) throw error;
         projects.push(def);
       }
