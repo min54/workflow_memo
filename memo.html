@@ -6,6 +6,7 @@
   <title>메모</title>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r134/three.min.js"></script>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -1148,6 +1149,13 @@
       transition: opacity 0.45s ease;
       overflow: hidden;
     }
+    #login-canvas {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 0;
+    }
     /* liquid blobs */
     .lq-blob {
       position: absolute;
@@ -1198,6 +1206,7 @@
       pointer-events: none;
       user-select: none;
       overflow: hidden;
+      z-index: 1;
     }
     .lbt-line {
       position: absolute;
@@ -1221,12 +1230,16 @@
     }
 
     #login-box {
-      background: #fff;
-      border: 1px solid #e3e2de;
-      border-radius: 14px;
+      position: relative;
+      z-index: 2;
+      background: rgba(255,255,255,0.82);
+      backdrop-filter: blur(18px);
+      -webkit-backdrop-filter: blur(18px);
+      border: 1px solid rgba(227,226,222,0.7);
+      border-radius: 18px;
       padding: 40px 36px;
       width: 320px;
-      box-shadow: 0 8px 32px rgba(0,0,0,0.08);
+      box-shadow: 0 8px 48px rgba(55,53,47,0.10);
       display: flex;
       flex-direction: column;
       gap: 16px;
@@ -1296,10 +1309,7 @@
 
 <!-- 로그인 오버레이 -->
 <div id="login-overlay">
-  <!-- morphing blobs -->
-  <div class="lq-blob"></div>
-  <div class="lq-blob"></div>
-  <div class="lq-blob"></div>
+  <canvas id="login-canvas"></canvas>
 
   <div id="login-bg-text">
     <div class="lbt-line xl">Clarity</div>
@@ -1704,6 +1714,129 @@
   } else {
     setTimeout(() => loginIdEl.focus(), 50);
     initFloatingText();
+    initLoginParticles();
+  }
+
+  function initLoginParticles() {
+    if (typeof THREE === 'undefined') return;
+    const canvas = document.getElementById('login-canvas');
+    if (!canvas) return;
+
+    const W = window.innerWidth, H = window.innerHeight;
+    const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: false });
+    renderer.setSize(W, H);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.setClearColor(0xf0efec, 1);
+
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(60, W / H, 0.1, 100);
+    camera.position.z = 9;
+
+    // ── 파티클 ─────────────────────────────────────────────
+    const COUNT = 2800;
+    const pos   = new Float32Array(COUNT * 3);
+    const sizes = new Float32Array(COUNT);
+
+    for (let i = 0; i < COUNT; i++) {
+      // 구 표면 + 내부 분포
+      const r     = 5 + Math.random() * 7;
+      const theta = Math.random() * Math.PI * 2;
+      const phi   = Math.acos(2 * Math.random() - 1);
+      pos[i*3]   = r * Math.sin(phi) * Math.cos(theta);
+      pos[i*3+1] = r * Math.sin(phi) * Math.sin(theta);
+      pos[i*3+2] = r * Math.cos(phi);
+      sizes[i]   = 0.6 + Math.random() * 2.4;
+    }
+
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+    geo.setAttribute('aSize',    new THREE.BufferAttribute(sizes, 1));
+
+    const mat = new THREE.ShaderMaterial({
+      uniforms: { uTime: { value: 0 }, uColor: { value: new THREE.Color(0x37352f) } },
+      vertexShader: `
+        attribute float aSize;
+        uniform float uTime;
+        varying float vAlpha;
+        void main() {
+          vec3 p = position;
+          p.x += sin(uTime * 0.28 + position.y * 0.6) * 0.18;
+          p.y += cos(uTime * 0.21 + position.x * 0.5) * 0.14;
+          p.z += sin(uTime * 0.17 + position.z * 0.4) * 0.12;
+          vec4 mv = modelViewMatrix * vec4(p, 1.0);
+          gl_PointSize = aSize * (220.0 / -mv.z);
+          gl_Position  = projectionMatrix * mv;
+          float depth = clamp((-mv.z - 3.0) / 14.0, 0.0, 1.0);
+          vAlpha = mix(0.55, 0.08, depth);
+        }
+      `,
+      fragmentShader: `
+        uniform vec3 uColor;
+        varying float vAlpha;
+        void main() {
+          float d = length(gl_PointCoord - 0.5) * 2.0;
+          if (d > 1.0) discard;
+          float soft = 1.0 - smoothstep(0.5, 1.0, d);
+          gl_FragColor = vec4(uColor, soft * vAlpha);
+        }
+      `,
+      transparent: true,
+      depthWrite: false,
+    });
+
+    const points = new THREE.Points(geo, mat);
+    scene.add(points);
+
+    // ── 연결선 (신경망 느낌) ────────────────────────────────
+    const linePositions = [];
+    const sample = 180; // 연결선 검사 샘플 수
+    for (let i = 0; i < sample; i++) {
+      for (let j = i + 1; j < sample; j++) {
+        const ax = pos[i*3], ay = pos[i*3+1], az = pos[i*3+2];
+        const bx = pos[j*3], by = pos[j*3+1], bz = pos[j*3+2];
+        const dist = Math.sqrt((ax-bx)**2 + (ay-by)**2 + (az-bz)**2);
+        if (dist < 2.8) {
+          linePositions.push(ax,ay,az, bx,by,bz);
+        }
+      }
+    }
+    const lineGeo = new THREE.BufferGeometry();
+    lineGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(linePositions), 3));
+    const lineMat = new THREE.LineBasicMaterial({ color: 0x37352f, transparent: true, opacity: 0.07 });
+    scene.add(new THREE.LineSegments(lineGeo, lineMat));
+
+    // ── 마우스 패럴랙스 ─────────────────────────────────────
+    let tx = 0, ty = 0, cx2 = 0, cy2 = 0;
+    loginOverlay.addEventListener('mousemove', e => {
+      tx = ((e.clientX / window.innerWidth)  - 0.5) *  0.6;
+      ty = ((e.clientY / window.innerHeight) - 0.5) * -0.4;
+    });
+
+    let alive = true;
+    loginBtnEl.addEventListener('click', () => { alive = false; renderer.dispose(); });
+
+    const clock = new THREE.Clock();
+    (function loop() {
+      if (!alive) return;
+      requestAnimationFrame(loop);
+      const t = clock.getElapsedTime();
+      mat.uniforms.uTime.value = t;
+
+      cx2 += (tx - cx2) * 0.035;
+      cy2 += (ty - cy2) * 0.035;
+
+      points.rotation.y = t * 0.045 + cx2;
+      points.rotation.x = cy2;
+
+      renderer.render(scene, camera);
+    })();
+
+    window.addEventListener('resize', () => {
+      const W2 = window.innerWidth, H2 = window.innerHeight;
+      camera.aspect = W2 / H2;
+      camera.updateProjectionMatrix();
+      renderer.setSize(W2, H2);
+    });
   }
 
   function initFloatingText() {
