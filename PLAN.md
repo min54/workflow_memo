@@ -78,6 +78,14 @@
 - [ ] 실시간 커서 표시
 - [ ] Google OAuth 로그인
 
+### 파일 품질 개선 (다음 버전)
+- [ ] 이미지 업로드 시 썸네일 + 원본 분리 저장
+  - 캔버스/하단 스트립 표시 → 썸네일 (최대 800px, JPEG 82%) — 빠른 로딩
+  - 클릭(모달) / 다운로드 → 원본 URL — 풀 화질
+  - 현재는 압축본만 저장하며 원본 유실됨
+  - Google Drive와 동일한 방식 (`thumb_*`, `orig_*` 분리 경로)
+  - Cloudflare R2 전환 시 같이 작업 권장 (1GB Supabase → 10GB R2)
+
 ### 인프라 (용량 확장)
 - [ ] 파일 저장소 Cloudflare R2 전환 (현재 Supabase Storage 1GB 무료 → R2 10GB 무료, egress 무제한)
   - Supabase DB는 유지, 파일/이미지만 R2로 교체
