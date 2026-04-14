@@ -1696,8 +1696,12 @@
   loginPwEl.addEventListener('keydown', e => { if (e.key === 'Enter') tryLogin(); });
 
   // 이미 로그인된 세션이면 빠르게 페이드아웃 (애니메이션 불필요)
+  // 로그인 애니메이션 alive 플래그 — 반드시 if/else 보다 먼저 선언
+  let _loginAnimAlive = true;
+  function stopLoginAnims() { _loginAnimAlive = false; }
+
   if (sessionStorage.getItem(AUTH_KEY) === '1') {
-    stopLoginAnims(); // 루프 시작 전에 플래그 false — 혹시 늦게 호출돼도 안전
+    stopLoginAnims();
     loginOverlay.style.transition = 'opacity 0.25s ease';
     loginOverlay.style.opacity = '0';
     setTimeout(() => { loginOverlay.style.display = 'none'; }, 260);
@@ -1705,12 +1709,6 @@
     setTimeout(() => loginIdEl.focus(), 50);
     initFloatingText();
     initLoginParticles();
-  }
-
-  // 로그인 애니메이션 정리 함수 (공유 alive 플래그)
-  let _loginAnimAlive = true;
-  function stopLoginAnims() {
-    _loginAnimAlive = false;
   }
 
   function initLoginParticles() {
