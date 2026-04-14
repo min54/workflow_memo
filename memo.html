@@ -1229,11 +1229,11 @@
       sel.removeAllRanges();
       sel.addRange(range);
     });
-    name.addEventListener('blur', () => {
+    name.addEventListener('blur', async () => {
       name.contentEditable = 'false';
       p.name = name.innerText.trim() || '이름 없음';
       name.innerText = p.name;
-      sb.from('projects').update({ name: p.name }).eq('id', p.id);
+      await sb.from('projects').update({ name: p.name }).eq('id', p.id);
       if (p.id === currentProjId) updateCanvasTitle();
     });
     name.addEventListener('keydown', e => {
@@ -1357,11 +1357,11 @@
       window.getSelection().removeAllRanges();
       window.getSelection().addRange(range);
     });
-    name.addEventListener('blur', () => {
+    name.addEventListener('blur', async () => {
       name.contentEditable = 'false';
       f.name = name.innerText.trim() || '폴더';
       name.innerText = f.name;
-      sb.from('folders').update({ name: f.name }).eq('id', f.id);
+      await sb.from('folders').update({ name: f.name }).eq('id', f.id);
     });
     name.addEventListener('keydown', e => {
       if (e.key === 'Enter') { e.preventDefault(); name.blur(); }
@@ -1442,16 +1442,16 @@
     });
 
     // ── 폴더 토글 ──
-    arrow.addEventListener('click', e => {
+    arrow.addEventListener('click', async e => {
       e.stopPropagation();
       f.collapsed = !f.collapsed;
-      sb.from('folders').update({ collapsed: f.collapsed }).eq('id', f.id);
+      await sb.from('folders').update({ collapsed: f.collapsed }).eq('id', f.id);
       renderSidebar();
     });
-    icon.addEventListener('click', e => {
+    icon.addEventListener('click', async e => {
       e.stopPropagation();
       f.collapsed = !f.collapsed;
-      sb.from('folders').update({ collapsed: f.collapsed }).eq('id', f.id);
+      await sb.from('folders').update({ collapsed: f.collapsed }).eq('id', f.id);
       renderSidebar();
     });
 
@@ -1478,7 +1478,7 @@
       await sb.from('projects').update({ folder_id: f.id }).eq('id', projId);
       if (f.collapsed) {
         f.collapsed = false;
-        sb.from('folders').update({ collapsed: false }).eq('id', f.id);
+        await sb.from('folders').update({ collapsed: false }).eq('id', f.id);
       }
       renderSidebar();
     });
@@ -1657,7 +1657,7 @@
         await sb.from('projects').update({ folder_id: f.id }).eq('id', ctxTargetProj.id);
         if (f.collapsed) {
           f.collapsed = false;
-          sb.from('folders').update({ collapsed: false }).eq('id', f.id);
+          await sb.from('folders').update({ collapsed: false }).eq('id', f.id);
         }
         hideCtxMenu();
         renderSidebar();
