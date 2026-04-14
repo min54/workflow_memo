@@ -304,9 +304,10 @@
       flex: 1;
       position: relative;
       overflow: hidden;
-      cursor: grab;
+      cursor: default;
     }
-    #text-overview-canvas.panning { cursor: grabbing; }
+    #text-overview-canvas.panning { cursor: grab; }
+    #text-overview-canvas.panning:active { cursor: grabbing; }
 
     #text-overview-world {
       position: absolute;
@@ -3786,12 +3787,23 @@ function setTool(tool, keepSel = false) {
   });
   document.getElementById('btn-text-overview').addEventListener('click', openTextOverview);
 
-  // 오버레이 패닝
+  // 오버레이 패닝 — Space + 드래그 (메인 캔버스와 동일)
+  let ovSpaceDown = false;
+
+  textOverlay.addEventListener('keydown', e => { if (e.code === 'Space') { e.preventDefault(); ovSpaceDown = true;  textOvCanvas.classList.toggle('panning', true); } }, true);
+  textOverlay.addEventListener('keyup',   e => { if (e.code === 'Space') { ovSpaceDown = false; if (!ovDragging) textOvCanvas.classList.remove('panning'); } }, true);
+
+  // Space 상태는 window keydown/up으로도 감지 (포커스 무관)
+  window.addEventListener('keydown', e => { if (e.code === 'Space' && textOverlay.classList.contains('open')) { e.preventDefault(); ovSpaceDown = true; textOvCanvas.classList.add('panning'); } });
+  window.addEventListener('keyup',   e => { if (e.code === 'Space') { ovSpaceDown = false; if (!ovDragging) textOvCanvas.classList.remove('panning'); } });
+
   textOvCanvas.addEventListener('mousedown', e => {
-    if (e.button !== 0) return;
+    if (e.button !== 0 || !ovSpaceDown) return;
+    e.preventDefault();
     ovDragging = true;
     ovDragSx = e.clientX; ovDragSy = e.clientY;
     ovDragTx = ovTx;      ovDragTy = ovTy;
+    textOvWorld.style.transition = 'none'; // 패닝 중 transition 제거
     textOvCanvas.classList.add('panning');
   });
   window.addEventListener('mousemove', e => {
@@ -3803,7 +3815,8 @@ function setTool(tool, keepSel = false) {
   window.addEventListener('mouseup', () => {
     if (!ovDragging) return;
     ovDragging = false;
-    textOvCanvas.classList.remove('panning');
+    textOvWorld.style.transition = ''; // transition 복구
+    if (!ovSpaceDown) textOvCanvas.classList.remove('panning');
   });
 
   // 오버레이 줌
