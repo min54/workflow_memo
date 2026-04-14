@@ -3356,14 +3356,19 @@ function setTool(tool, keepSel = false) {
     return text.replace(new RegExp(escaped, 'gi'), m => `<mark style="background:#ffe66d;border-radius:2px;padding:0 1px;">${m}</mark>`);
   }
 
+  let _searchToken = 0; // race condition 방지용
+
   async function doSearch(query) {
+    const token = ++_searchToken;
     searchResults.innerHTML = '';
     if (!query.trim()) { searchCount.textContent = ''; return; }
 
     // 현재 프로젝트 먼저 저장 (최신 상태 반영)
     await saveCanvas();
+    if (token !== _searchToken) return; // 더 최신 검색이 실행 중이면 중단
     // Supabase에서 모든 프로젝트 + 캔버스 데이터 조회
     const allProjects = await loadProjects();
+    if (token !== _searchToken) return;
     const { data: allCanvases } = await sb.from('canvases').select('project_id, data');
     const canvasMap = {};
     (allCanvases || []).forEach(c => { canvasMap[c.project_id] = c.data; });
@@ -3490,7 +3495,11 @@ function setTool(tool, keepSel = false) {
     }, 1800);
   }
 
-  searchInput.addEventListener('input', () => doSearch(searchInput.value));
+  let _searchDebounce = null;
+  searchInput.addEventListener('input', () => {
+    clearTimeout(_searchDebounce);
+    _searchDebounce = setTimeout(() => doSearch(searchInput.value), 300);
+  });
   document.getElementById('btn-search-sidebar').addEventListener('click', () => openSearch());
 
   // ── 사용법 모달 ──────────────────────────────────────────
