@@ -4611,13 +4611,13 @@ function setTool(tool, keepSel = false) {
       clearTimeout(hideTimer);
       if (!panel.classList.contains('open')) {
         panel.classList.add('open');
-        iframe.src = embedSrc(currentId);
+        if (!iframe.src || iframe.src === 'about:blank') iframe.src = embedSrc(currentId);
       }
     }
     function hidePanel() {
       hideTimer = setTimeout(() => {
         panel.classList.remove('open');
-        iframe.src = '';
+        // 음악은 계속 재생 — src 건드리지 않음
       }, 300);
     }
 
@@ -4627,7 +4627,7 @@ function setTool(tool, keepSel = false) {
     closeB.addEventListener('click', () => {
       clearTimeout(hideTimer);
       panel.classList.remove('open');
-      iframe.src = '';
+      iframe.src = ''; // ✕ 버튼만 완전 정지
     });
   })();
 </script>
