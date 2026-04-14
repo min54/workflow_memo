@@ -95,11 +95,13 @@
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
-      cursor: text;
-      user-select: text;
+      cursor: default;
+      user-select: none;
     }
 
-    .proj-name:focus {
+    .proj-name[contenteditable="true"] {
+      user-select: text;
+      cursor: text;
       overflow: visible;
       text-overflow: clip;
     }
@@ -121,9 +123,103 @@
     .proj-item:hover .proj-del { opacity: 1; }
     .proj-del:hover { color: #e03e3e; }
 
-    #add-project-btn {
-      margin: 8px;
-      padding: 8px 12px;
+    /* ── 폴더 아이템 ── */
+    .folder-item { margin-bottom: 2px; }
+
+    .folder-row {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 10px;
+      border-radius: 7px;
+      cursor: pointer;
+      transition: background 0.12s;
+      user-select: none;
+      position: relative;
+    }
+    .folder-row:hover { background: #f0efec; }
+    .folder-row.drag-over { background: #e8f0fe; outline: 2px dashed #4a90d9; }
+
+    .folder-arrow {
+      font-size: 9px;
+      color: #b0aead;
+      width: 12px;
+      flex-shrink: 0;
+      transition: transform 0.15s;
+    }
+
+    .folder-icon {
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      color: #888;
+    }
+
+    .folder-name {
+      flex: 1;
+      font-size: 13px;
+      font-weight: 600;
+      color: #37352f;
+      outline: none;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      cursor: default;
+      user-select: none;
+    }
+
+    .folder-name[contenteditable="true"] {
+      user-select: text;
+      cursor: text;
+      overflow: visible;
+      text-overflow: clip;
+    }
+    .folder-name:focus { overflow: visible; text-overflow: clip; }
+
+    .folder-del {
+      opacity: 0;
+      background: none;
+      border: none;
+      cursor: pointer;
+      font-size: 12px;
+      color: #b0aead;
+      padding: 2px 4px;
+      border-radius: 4px;
+      line-height: 1;
+      flex-shrink: 0;
+      transition: color 0.12s;
+    }
+    .folder-row:hover .folder-del { opacity: 1; }
+    .folder-del:hover { color: #e03e3e; }
+
+    .folder-children {
+      margin-left: 12px;
+      overflow: hidden;
+    }
+    .folder-children.collapsed { display: none; }
+
+    /* 폴더 안 프로젝트는 점 대신 라인 */
+    .folder-children .proj-item { padding-left: 8px; }
+    .folder-children .proj-dot { background: #d0cfcc; width: 6px; height: 6px; }
+    .folder-children .proj-item.active .proj-dot { background: #37352f; }
+
+    /* ── 드래그 상태 ── */
+    .proj-item.dragging  { opacity: 0.4; }
+    .folder-item.dragging { opacity: 0.4; }
+    .folder-item.drop-above { border-top: 2px solid #4a90d9; }
+    .folder-item.drop-below { border-bottom: 2px solid #4a90d9; }
+
+    /* ── 사이드바 하단 버튼 영역 ── */
+    #sidebar-footer {
+      padding: 8px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      flex-shrink: 0;
+    }
+
+    #add-project-btn, #add-folder-btn {
+      padding: 7px 12px;
       background: none;
       border: 1.5px dashed #d0cfcc;
       border-radius: 8px;
@@ -133,10 +229,56 @@
       cursor: pointer;
       text-align: center;
       transition: border-color 0.15s, color 0.15s;
-      flex-shrink: 0;
+      width: 100%;
     }
+    #add-project-btn:hover, #add-folder-btn:hover { border-color: #37352f; color: #37352f; }
 
-    #add-project-btn:hover { border-color: #37352f; color: #37352f; }
+    /* ── 컨텍스트 메뉴 ── */
+    #ctx-menu {
+      position: fixed;
+      background: #fff;
+      border: 1px solid #e3e2de;
+      border-radius: 8px;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.12);
+      z-index: 9999;
+      min-width: 160px;
+      padding: 4px;
+      display: none;
+    }
+    .ctx-item {
+      padding: 7px 12px;
+      font-size: 13px;
+      color: #37352f;
+      border-radius: 5px;
+      cursor: pointer;
+      white-space: nowrap;
+      position: relative;
+    }
+    .ctx-item:hover { background: #f0efec; }
+    .ctx-item.danger { color: #e03e3e; }
+    .ctx-item.has-sub::after { content: '▶'; position: absolute; right: 10px; font-size: 9px; color: #aaa; }
+    .ctx-sep { height: 1px; background: #e3e2de; margin: 4px 0; }
+
+    #ctx-submenu {
+      position: fixed;
+      background: #fff;
+      border: 1px solid #e3e2de;
+      border-radius: 8px;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.12);
+      z-index: 10000;
+      min-width: 140px;
+      padding: 4px;
+      display: none;
+    }
+    .ctx-sub-item {
+      padding: 7px 12px;
+      font-size: 13px;
+      color: #37352f;
+      border-radius: 5px;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+    .ctx-sub-item:hover { background: #f0efec; }
 
     #viewport {
       position: fixed;
@@ -632,8 +774,21 @@
     </button>
   </div>
   <div id="project-list"></div>
-  <button id="add-project-btn">+ 새 프로젝트</button>
+  <div id="sidebar-footer">
+    <button id="add-project-btn">+ 새 프로젝트</button>
+    <button id="add-folder-btn">+ 새 폴더</button>
+  </div>
 </div>
+
+<!-- 컨텍스트 메뉴 -->
+<div id="ctx-menu">
+  <div class="ctx-item" id="ctx-rename">이름 변경</div>
+  <div class="ctx-item has-sub" id="ctx-move-to">폴더로 이동</div>
+  <div class="ctx-item" id="ctx-remove-from-folder">폴더에서 꺼내기</div>
+  <div class="ctx-sep"></div>
+  <div class="ctx-item danger" id="ctx-delete">삭제</div>
+</div>
+<div id="ctx-submenu"></div>
 
 <div id="viewport">
   <div id="world"></div>
@@ -723,7 +878,7 @@
         <div class="help-title">캔버스 조작</div>
         <div class="help-row"><span class="help-key">더블클릭</span><span>텍스트 블록 생성</span></div>
         <div class="help-row"><span class="help-key">휠 스크롤</span><span>확대 / 축소</span></div>
-        <div class="help-row"><span class="help-key">빈 캔버스 드래그</span><span>화면 이동 (패닝)</span></div>
+        <div class="help-row"><span class="help-key">Space + 드래그</span><span>화면 이동 (패닝)</span></div>
       </div>
 
       <div class="help-section">
@@ -903,140 +1058,465 @@
     return data || [];
   }
 
-  async function saveProjects(list) {
-    if (!list.length) return;
-    await sb.from('projects').upsert(list.map(p => ({ id: p.id, name: p.name })));
+  async function loadFolders() {
+    const { data } = await sb.from('folders').select('*').order('created_at');
+    return (data || []).sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
   }
 
+  let folders       = [];
   let projects      = [];
   let currentProjId = null;
+  let dragSrc       = null; // { type: 'folder'|'proj', id }
 
-  // 사이드바 렌더링
+  // ── 프로젝트 아이템 생성 ────────────────────────────────────
+  function createProjItem(p) {
+    const item = document.createElement('div');
+    item.className = 'proj-item' + (p.id === currentProjId ? ' active' : '');
+    item.dataset.id = p.id;
+    item.draggable = true;
+
+    const dot = document.createElement('div');
+    dot.className = 'proj-dot';
+
+    const name = document.createElement('div');
+    name.className = 'proj-name';
+    name.contentEditable = 'false';
+    name.spellcheck = false;
+    name.innerText = p.name;
+
+    name.addEventListener('click', e => { if (name.contentEditable === 'true') e.stopPropagation(); });
+    name.addEventListener('dblclick', e => {
+      e.stopPropagation();
+      name.contentEditable = 'true';
+      name.focus();
+      const range = document.createRange();
+      range.selectNodeContents(name);
+      range.collapse(false);
+      const sel = window.getSelection();
+      sel.removeAllRanges();
+      sel.addRange(range);
+    });
+    name.addEventListener('blur', () => {
+      name.contentEditable = 'false';
+      p.name = name.innerText.trim() || '이름 없음';
+      name.innerText = p.name;
+      sb.from('projects').update({ name: p.name }).eq('id', p.id);
+      if (p.id === currentProjId) updateCanvasTitle();
+    });
+    name.addEventListener('keydown', e => {
+      if (e.key === 'Enter') { e.preventDefault(); name.blur(); }
+    });
+
+    const del = document.createElement('button');
+    del.className = 'proj-del';
+    del.innerHTML = '✕';
+    del.title = '삭제';
+    del.addEventListener('click', e => {
+      e.stopPropagation();
+      if (projects.length === 1) return;
+      if (item.dataset.confirming) return;
+      item.dataset.confirming = '1';
+
+      dot.style.display  = 'none';
+      name.style.display = 'none';
+      del.style.display  = 'none';
+
+      const confirmRow = document.createElement('div');
+      confirmRow.style.cssText = 'display:flex;align-items:center;gap:6px;width:100%;';
+
+      const msg = document.createElement('span');
+      msg.style.cssText = 'font-size:11px;color:#e03e3e;flex:1;';
+      msg.textContent = '삭제할까요?';
+
+      const btnOk = document.createElement('button');
+      btnOk.textContent = '삭제';
+      btnOk.style.cssText = 'font-size:11px;padding:2px 8px;border:none;background:#e03e3e;color:#fff;border-radius:4px;cursor:pointer;';
+
+      const btnCancel = document.createElement('button');
+      btnCancel.textContent = '취소';
+      btnCancel.style.cssText = 'font-size:11px;padding:2px 8px;border:1px solid #e3e2de;background:#fff;color:#888;border-radius:4px;cursor:pointer;';
+
+      confirmRow.appendChild(msg);
+      confirmRow.appendChild(btnOk);
+      confirmRow.appendChild(btnCancel);
+      item.appendChild(confirmRow);
+
+      function restore() {
+        confirmRow.remove();
+        dot.style.display  = '';
+        name.style.display = '';
+        del.style.display  = '';
+        delete item.dataset.confirming;
+      }
+
+      btnOk.addEventListener('click', async e => {
+        e.stopPropagation();
+        await sb.from('projects').delete().eq('id', p.id);
+        projects = projects.filter(x => x.id !== p.id);
+        if (currentProjId === p.id) await switchProject(projects[0].id);
+        else renderSidebar();
+      });
+      btnCancel.addEventListener('click', e => { e.stopPropagation(); restore(); });
+    });
+
+    // ── 드래그 ──
+    item.addEventListener('dragstart', e => {
+      window.getSelection().removeAllRanges();
+      dragSrc = { type: 'proj', id: p.id };
+      e.dataTransfer.setData('projId', p.id);
+      item.classList.add('dragging');
+    });
+    item.addEventListener('dragend', () => {
+      item.classList.remove('dragging');
+      dragSrc = null;
+    });
+
+    // ── 우클릭 컨텍스트 메뉴 ──
+    item.addEventListener('contextmenu', e => {
+      e.preventDefault();
+      showCtxMenu(e, p);
+    });
+
+    item.appendChild(dot);
+    item.appendChild(name);
+    item.appendChild(del);
+
+    item.addEventListener('click', () => {
+      if (p.id !== currentProjId) switchProject(p.id);
+    });
+
+    return item;
+  }
+
+  // ── 폴더 아이템 생성 ────────────────────────────────────────
+  function createFolderEl(f) {
+    const container = document.createElement('div');
+    container.className = 'folder-item';
+    container.dataset.folderId = f.id;
+
+    const row = document.createElement('div');
+    row.className = 'folder-row';
+
+    const arrow = document.createElement('span');
+    arrow.className = 'folder-arrow';
+    arrow.textContent = f.collapsed ? '▶' : '▼';
+
+    const icon = document.createElement('span');
+    icon.className = 'folder-icon';
+    icon.innerHTML = f.collapsed
+      ? `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>`
+      : `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/><line x1="2" y1="10" x2="22" y2="10"/></svg>`;
+
+    const name = document.createElement('div');
+    name.className = 'folder-name';
+    name.contentEditable = 'false';
+    name.spellcheck = false;
+    name.innerText = f.name;
+
+    name.addEventListener('click', e => { if (name.contentEditable === 'true') e.stopPropagation(); });
+    name.addEventListener('dblclick', e => {
+      e.stopPropagation();
+      name.contentEditable = 'true';
+      name.focus();
+      const range = document.createRange();
+      range.selectNodeContents(name);
+      range.collapse(false);
+      window.getSelection().removeAllRanges();
+      window.getSelection().addRange(range);
+    });
+    name.addEventListener('blur', () => {
+      name.contentEditable = 'false';
+      f.name = name.innerText.trim() || '폴더';
+      name.innerText = f.name;
+      sb.from('folders').update({ name: f.name }).eq('id', f.id);
+    });
+    name.addEventListener('keydown', e => {
+      if (e.key === 'Enter') { e.preventDefault(); name.blur(); }
+    });
+
+    const del = document.createElement('button');
+    del.className = 'folder-del';
+    del.innerHTML = '✕';
+    del.title = '폴더 삭제 (프로젝트는 유지)';
+    del.addEventListener('click', async e => {
+      e.stopPropagation();
+      if (!confirm(`"${f.name}" 폴더를 삭제할까요?\n(프로젝트는 삭제되지 않습니다)`)) return;
+      await sb.from('folders').delete().eq('id', f.id);
+      // folder_id가 SET NULL 되므로 projects 상태 업데이트
+      projects.forEach(p => { if (p.folder_id === f.id) p.folder_id = null; });
+      folders = folders.filter(x => x.id !== f.id);
+      renderSidebar();
+    });
+
+    // ── 폴더 토글 ──
+    arrow.addEventListener('click', e => {
+      e.stopPropagation();
+      f.collapsed = !f.collapsed;
+      sb.from('folders').update({ collapsed: f.collapsed }).eq('id', f.id);
+      renderSidebar();
+    });
+    icon.addEventListener('click', e => {
+      e.stopPropagation();
+      f.collapsed = !f.collapsed;
+      sb.from('folders').update({ collapsed: f.collapsed }).eq('id', f.id);
+      renderSidebar();
+    });
+
+    // ── 프로젝트 드롭 수신 (폴더 안으로) ──
+    row.addEventListener('dragover', e => {
+      if (dragSrc?.type !== 'proj') return;
+      e.preventDefault();
+      e.stopPropagation(); // container의 folder-reorder dragover가 실행되지 않게
+      row.classList.add('drag-over');
+    });
+    row.addEventListener('dragleave', e => {
+      if (!row.contains(e.relatedTarget)) row.classList.remove('drag-over');
+    });
+    row.addEventListener('drop', async e => {
+      if (dragSrc?.type !== 'proj') return;
+      e.preventDefault();
+      e.stopPropagation();
+      row.classList.remove('drag-over');
+      const projId = e.dataTransfer.getData('projId');
+      if (!projId) return;
+      const proj = projects.find(p => p.id === projId);
+      if (!proj) return;
+      proj.folder_id = f.id;
+      await sb.from('projects').update({ folder_id: f.id }).eq('id', projId);
+      if (f.collapsed) {
+        f.collapsed = false;
+        sb.from('folders').update({ collapsed: false }).eq('id', f.id);
+      }
+      renderSidebar();
+    });
+
+    row.appendChild(arrow);
+    row.appendChild(icon);
+    row.appendChild(name);
+    row.appendChild(del);
+
+    // ── 폴더 자체 드래그 (순서 변경) ──
+    // row를 drag source로 사용 (container 전체보다 안정적)
+    row.draggable = true;
+    // folder-name의 contenteditable이 drag를 방해하지 않도록
+    name.addEventListener('mousedown', e => {
+      if (name.contentEditable !== 'true') e.preventDefault();
+    });
+    row.addEventListener('dragstart', e => {
+      window.getSelection().removeAllRanges();
+      dragSrc = { type: 'folder', id: f.id };
+      e.dataTransfer.setData('folderId', f.id);
+      e.dataTransfer.effectAllowed = 'move';
+      setTimeout(() => container.classList.add('dragging'), 0);
+    });
+    row.addEventListener('dragend', () => {
+      container.classList.remove('dragging');
+      document.querySelectorAll('.folder-item').forEach(el =>
+        el.classList.remove('drop-above', 'drop-below')
+      );
+      dragSrc = null;
+    });
+    container.addEventListener('dragover', e => {
+      if (dragSrc?.type !== 'folder' || dragSrc.id === f.id) return;
+      e.preventDefault();
+      e.stopPropagation();
+      const rect = container.getBoundingClientRect();
+      if (e.clientY < rect.top + rect.height / 2) {
+        container.classList.add('drop-above');
+        container.classList.remove('drop-below');
+      } else {
+        container.classList.add('drop-below');
+        container.classList.remove('drop-above');
+      }
+    });
+    container.addEventListener('dragleave', e => {
+      if (!container.contains(e.relatedTarget)) {
+        container.classList.remove('drop-above', 'drop-below');
+      }
+    });
+    container.addEventListener('drop', async e => {
+      if (dragSrc?.type !== 'folder') return;
+      e.preventDefault();
+      e.stopPropagation();
+      const isAbove = container.classList.contains('drop-above');
+      container.classList.remove('drop-above', 'drop-below');
+
+      const srcIdx = folders.findIndex(x => x.id === dragSrc.id);
+      const dstIdx = folders.findIndex(x => x.id === f.id);
+      if (srcIdx === -1 || dstIdx === -1 || srcIdx === dstIdx) return;
+
+      const [moved] = folders.splice(srcIdx, 1);
+      const newDst  = folders.findIndex(x => x.id === f.id);
+      folders.splice(isAbove ? newDst : newDst + 1, 0, moved);
+
+      // sort_order 일괄 저장
+      await Promise.all(folders.map((folder, i) => {
+        folder.sort_order = i;
+        return sb.from('folders').update({ sort_order: i }).eq('id', folder.id);
+      }));
+
+      renderSidebar();
+    });
+
+    // ── 자식 프로젝트 ──
+    const children = document.createElement('div');
+    children.className = 'folder-children' + (f.collapsed ? ' collapsed' : '');
+
+    const folderProjects = projects.filter(p => p.folder_id === f.id);
+    for (const p of folderProjects) {
+      children.appendChild(createProjItem(p));
+    }
+
+    container.appendChild(row);
+    container.appendChild(children);
+    return container;
+  }
+
+  // ── 사이드바 렌더링 ─────────────────────────────────────────
   function renderSidebar() {
     const list = document.getElementById('project-list');
     list.innerHTML = '';
-    for (const p of projects) {
-      const item = document.createElement('div');
-      item.className = 'proj-item' + (p.id === currentProjId ? ' active' : '');
-      item.dataset.id = p.id;
 
-      const dot = document.createElement('div');
-      dot.className = 'proj-dot';
-
-      const name = document.createElement('div');
-      name.className = 'proj-name';
-      name.contentEditable = 'false';
-      name.spellcheck = false;
-      name.innerText = p.name;
-
-      name.addEventListener('click', e => { if (name.contentEditable === 'true') e.stopPropagation(); });
-      name.addEventListener('dblclick', e => {
-        e.stopPropagation();
-        name.contentEditable = 'true';
-        name.focus();
-        // 커서를 텍스트 끝으로
-        const range = document.createRange();
-        range.selectNodeContents(name);
-        range.collapse(false);
-        const sel = window.getSelection();
-        sel.removeAllRanges();
-        sel.addRange(range);
-      });
-      name.addEventListener('blur', () => {
-        name.contentEditable = 'false';
-        p.name = name.innerText.trim() || '이름 없음';
-        name.innerText = p.name;
-        sb.from('projects').update({ name: p.name }).eq('id', p.id);
-        if (p.id === currentProjId) updateCanvasTitle();
-      });
-      name.addEventListener('keydown', e => {
-        if (e.key === 'Enter') { e.preventDefault(); name.blur(); }
-      });
-
-      const del = document.createElement('button');
-      del.className = 'proj-del';
-      del.innerHTML = '✕';
-      del.title = '삭제';
-      del.addEventListener('click', e => {
-        e.stopPropagation();
-        if (projects.length === 1) return;
-
-        // 이미 확인 모드면 무시
-        if (item.dataset.confirming) return;
-        item.dataset.confirming = '1';
-
-        // 기존 내용 숨기고 확인 UI 표시
-        dot.style.display  = 'none';
-        name.style.display = 'none';
-        del.style.display  = 'none';
-
-        const confirmRow = document.createElement('div');
-        confirmRow.style.cssText = 'display:flex;align-items:center;gap:6px;width:100%;';
-
-        const msg = document.createElement('span');
-        msg.style.cssText = 'font-size:11px;color:#e03e3e;flex:1;';
-        msg.textContent = '삭제할까요?';
-
-        const btnOk = document.createElement('button');
-        btnOk.textContent = '삭제';
-        btnOk.style.cssText = 'font-size:11px;padding:2px 8px;border:none;background:#e03e3e;color:#fff;border-radius:4px;cursor:pointer;';
-
-        const btnCancel = document.createElement('button');
-        btnCancel.textContent = '취소';
-        btnCancel.style.cssText = 'font-size:11px;padding:2px 8px;border:1px solid #e3e2de;background:#fff;color:#888;border-radius:4px;cursor:pointer;';
-
-        confirmRow.appendChild(msg);
-        confirmRow.appendChild(btnOk);
-        confirmRow.appendChild(btnCancel);
-        item.appendChild(confirmRow);
-
-        function restore() {
-          confirmRow.remove();
-          dot.style.display  = '';
-          name.style.display = '';
-          del.style.display  = '';
-          delete item.dataset.confirming;
-        }
-
-        btnOk.addEventListener('click', async e => {
-          e.stopPropagation();
-          await sb.from('projects').delete().eq('id', p.id);
-          projects = projects.filter(x => x.id !== p.id);
-          if (currentProjId === p.id) await switchProject(projects[0].id);
-          else renderSidebar();
-        });
-
-        btnCancel.addEventListener('click', e => {
-          e.stopPropagation();
-          restore();
-        });
-      });
-
-      item.appendChild(dot);
-      item.appendChild(name);
-      item.appendChild(del);
-
-      item.addEventListener('click', () => {
-        if (p.id !== currentProjId) switchProject(p.id);
-      });
-
-      list.appendChild(item);
+    // 폴더 없는 프로젝트들
+    const orphans = projects.filter(p => !p.folder_id);
+    for (const p of orphans) {
+      list.appendChild(createProjItem(p));
     }
+
+    // 폴더들 (하단)
+    for (const f of folders) {
+      list.appendChild(createFolderEl(f));
+    }
+
+    // project-list 자체에도 드롭 허용 (폴더에서 꺼내기 - 빈 영역 드롭)
+    list.addEventListener('dragover', e => e.preventDefault());
+    list.addEventListener('drop', async e => {
+      // folder-row 에서 이미 처리됐으면 무시
+      if (e.target.closest('.folder-row')) return;
+      const projId = e.dataTransfer.getData('projId');
+      if (!projId) return;
+      const proj = projects.find(p => p.id === projId);
+      if (!proj || !proj.folder_id) return;
+      proj.folder_id = null;
+      await sb.from('projects').update({ folder_id: null }).eq('id', projId);
+      renderSidebar();
+    });
   }
 
-  // 프로젝트 전환: 현재 캔버스 저장 → 새 캔버스 불러오기
+  // ── 컨텍스트 메뉴 ───────────────────────────────────────────
+  const ctxMenu       = document.getElementById('ctx-menu');
+  const ctxSubmenu    = document.getElementById('ctx-submenu');
+  let ctxTargetProj   = null;
+
+  function showCtxMenu(e, p) {
+    ctxTargetProj = p;
+    ctxSubmenu.style.display = 'none';
+
+    // 폴더에서 꺼내기 표시 여부
+    document.getElementById('ctx-remove-from-folder').style.display = p.folder_id ? '' : 'none';
+    // 폴더로 이동 - 폴더가 없으면 숨김
+    document.getElementById('ctx-move-to').style.display = folders.length > 0 ? '' : 'none';
+
+    ctxMenu.style.display = 'block';
+    const x = Math.min(e.clientX, window.innerWidth  - 180);
+    const y = Math.min(e.clientY, window.innerHeight - 160);
+    ctxMenu.style.left = x + 'px';
+    ctxMenu.style.top  = y + 'px';
+  }
+
+  function hideCtxMenu() {
+    ctxMenu.style.display    = 'none';
+    ctxSubmenu.style.display = 'none';
+    ctxTargetProj = null;
+  }
+
+  document.addEventListener('click', hideCtxMenu);
+  document.addEventListener('contextmenu', e => {
+    if (!e.target.closest('.proj-item')) hideCtxMenu();
+  });
+
+  // 이름 변경
+  document.getElementById('ctx-rename').addEventListener('click', () => {
+    if (!ctxTargetProj) return;
+    hideCtxMenu();
+    const item = document.querySelector(`.proj-item[data-id="${ctxTargetProj.id}"]`);
+    if (!item) return;
+    const nameEl = item.querySelector('.proj-name');
+    nameEl.contentEditable = 'true';
+    nameEl.focus();
+    const range = document.createRange();
+    range.selectNodeContents(nameEl);
+    range.collapse(false);
+    window.getSelection().removeAllRanges();
+    window.getSelection().addRange(range);
+  });
+
+  // 폴더로 이동 - 서브메뉴
+  document.getElementById('ctx-move-to').addEventListener('mouseenter', e => {
+    ctxSubmenu.innerHTML = '';
+    for (const f of folders) {
+      const sub = document.createElement('div');
+      sub.className = 'ctx-sub-item';
+      sub.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;margin-right:6px;color:#888"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>` + f.name;
+      sub.addEventListener('click', async () => {
+        if (!ctxTargetProj) return;
+        ctxTargetProj.folder_id = f.id;
+        await sb.from('projects').update({ folder_id: f.id }).eq('id', ctxTargetProj.id);
+        if (f.collapsed) {
+          f.collapsed = false;
+          sb.from('folders').update({ collapsed: false }).eq('id', f.id);
+        }
+        hideCtxMenu();
+        renderSidebar();
+      });
+      ctxSubmenu.appendChild(sub);
+    }
+    const rect = document.getElementById('ctx-move-to').getBoundingClientRect();
+    ctxSubmenu.style.display = 'block';
+    ctxSubmenu.style.left    = (rect.right + 4) + 'px';
+    ctxSubmenu.style.top     = rect.top + 'px';
+  });
+  document.getElementById('ctx-move-to').addEventListener('mouseleave', e => {
+    if (!e.relatedTarget || !e.relatedTarget.closest('#ctx-submenu')) {
+      ctxSubmenu.style.display = 'none';
+    }
+  });
+  ctxSubmenu.addEventListener('mouseleave', () => { ctxSubmenu.style.display = 'none'; });
+
+  // 폴더에서 꺼내기
+  document.getElementById('ctx-remove-from-folder').addEventListener('click', async () => {
+    if (!ctxTargetProj) return;
+    ctxTargetProj.folder_id = null;
+    await sb.from('projects').update({ folder_id: null }).eq('id', ctxTargetProj.id);
+    hideCtxMenu();
+    renderSidebar();
+  });
+
+  // 삭제
+  document.getElementById('ctx-delete').addEventListener('click', async () => {
+    if (!ctxTargetProj) return;
+    if (projects.length === 1) { hideCtxMenu(); return; }
+    const p = ctxTargetProj;
+    hideCtxMenu();
+    await sb.from('projects').delete().eq('id', p.id);
+    projects = projects.filter(x => x.id !== p.id);
+    if (currentProjId === p.id) await switchProject(projects[0].id);
+    else renderSidebar();
+  });
+
+  // ── 프로젝트 전환 ───────────────────────────────────────────
   async function switchProject(id) {
-    await saveCanvas();                // 현재 프로젝트 저장
-    clearCanvas();                     // 캔버스 비우기
+    await saveCanvas();
+    clearCanvas();
     currentProjId = id;
     renderSidebar();
-    await loadCanvas();                // 새 프로젝트 불러오기
+    await loadCanvas();
     updateCanvasTitle();
   }
 
-  // 새 프로젝트 추가
+  // ── 새 프로젝트 추가 ────────────────────────────────────────
   document.getElementById('add-project-btn').addEventListener('click', async () => {
-    const p = { id: 'proj_' + Date.now(), name: '새 프로젝트' };
+    const p = { id: 'proj_' + Date.now(), name: '새 프로젝트', folder_id: null };
     await sb.from('projects').insert({ id: p.id, name: p.name });
     projects.push(p);
     await switchProject(p.id);
@@ -1044,6 +1524,27 @@
       const items = document.querySelectorAll('.proj-item');
       const last  = items[items.length - 1];
       if (last) last.querySelector('.proj-name').focus();
+    }, 50);
+  });
+
+  // ── 새 폴더 추가 ────────────────────────────────────────────
+  document.getElementById('add-folder-btn').addEventListener('click', async () => {
+    const f = { id: 'fold_' + Date.now(), name: '새 폴더', collapsed: false };
+    await sb.from('folders').insert({ id: f.id, name: f.name, collapsed: false });
+    folders.push(f);
+    renderSidebar();
+    setTimeout(() => {
+      const folderEls = document.querySelectorAll('.folder-row');
+      const last = folderEls[folderEls.length - 1];
+      if (last) {
+        const nameEl = last.querySelector('.folder-name');
+        nameEl.contentEditable = 'true';
+        nameEl.focus();
+        const range = document.createRange();
+        range.selectNodeContents(nameEl);
+        window.getSelection().removeAllRanges();
+        window.getSelection().addRange(range);
+      }
     }, 50);
   });
 
@@ -1349,6 +1850,13 @@ function setTool(tool, keepSel = false) {
   btnSelect.addEventListener('click',  () => setTool('select'));
 
   document.addEventListener('keydown', e => {
+    // Space: 패닝 모드 진입 (contenteditable 안에서는 무시)
+    if (e.code === 'Space' && !e.target.isContentEditable && !spaceDown) {
+      spaceDown = true;
+      document.body.classList.add('space-pan');
+      e.preventDefault();
+      return;
+    }
     if (e.target.isContentEditable) return;
     if (e.key === 'v' || e.key === 'V') setTool('pointer');
     if (e.key === 's' || e.key === 'S') setTool('select');
@@ -1357,6 +1865,18 @@ function setTool(tool, keepSel = false) {
     // 선택된 블록 일괄 삭제 (Delete / Backspace)
     if ((e.key === 'Delete' || e.key === 'Backspace') && selected.size > 0) {
       btnDeleteSelected.click();
+    }
+  });
+
+  document.addEventListener('keyup', e => {
+    if (e.code === 'Space') {
+      spaceDown = false;
+      document.body.classList.remove('space-pan', 'panning');
+      if (panning) {
+        panning = false;
+        viewport.style.cursor = '';
+        save();
+      }
     }
   });
 
@@ -1462,6 +1982,7 @@ function setTool(tool, keepSel = false) {
   });
 
   // ── 상태 변수 ────────────────────────────────────────────
+  let spaceDown = false;
   let panning = false, panSx, panSy, panTx, panTy;
   let selecting = false, selSx, selSy;
   let pendingGroupDrag = null; // { sx, sy } — 그룹 이동 대기 (클릭 vs 드래그 구분용)
@@ -1469,8 +1990,19 @@ function setTool(tool, keepSel = false) {
 
   viewport.addEventListener('mousedown', e => {
     if (e.button !== 0) return;
-    if (e.target.isContentEditable) return;
     if (e.target.closest('#bottom-bar, #toolbar')) return;
+
+    // ── Space + 좌클릭: 패닝 ──────────────────────────────────
+    if (spaceDown && !e.target.isContentEditable) {
+      panning = true;
+      panSx = e.clientX; panSy = e.clientY;
+      panTx = tx;        panTy = ty;
+      document.body.classList.add('panning');
+      e.preventDefault();
+      return;
+    }
+
+    if (e.target.isContentEditable) return;
 
     // 빈 캔버스 클릭 시 포커스 강제 해제 → 빈 블록 focusout 트리거
     if (document.activeElement && document.activeElement.isContentEditable) {
@@ -1481,15 +2013,10 @@ function setTool(tool, keepSel = false) {
       if (e.target.closest('.block, .img-block, .file-block')) return; // attachDrag가 처리
 
       if (selected.size > 0) {
-        // ★ 선택된 항목 있음: 빈 캔버스 드래그 = 그룹 이동 / 클릭 = 해제
+        // 선택된 항목 있음: 빈 캔버스 드래그 = 그룹 이동 / 클릭 = 해제
         pendingGroupDrag = { sx: e.clientX, sy: e.clientY };
-      } else {
-        // 선택 없음: 패닝
-        panning = true;
-        panSx = e.clientX; panSy = e.clientY;
-        panTx = tx;        panTy = ty;
-        viewport.style.cursor = 'grabbing';
       }
+      // 선택 없음 + Space 없음: 아무것도 안 함 (클릭만 = 선택 해제)
     } else {
       // 선택 모드: 러버밴드
       if (e.target.closest('.block, .img-block, .file-block')) return;
@@ -1533,6 +2060,7 @@ function setTool(tool, keepSel = false) {
   document.addEventListener('mouseup', () => {
     if (panning) {
       panning = false;
+      document.body.classList.remove('panning');
       viewport.style.cursor = '';
       save();
     }
@@ -2098,11 +2626,12 @@ function setTool(tool, keepSel = false) {
       await migrateFromLocalStorage();
       console.log('[memo] migration done');
 
-      projects = await loadProjects();
+      [folders, projects] = await Promise.all([loadFolders(), loadProjects()]);
+      console.log('[memo] folders loaded:', folders.length);
       console.log('[memo] projects loaded:', projects.length, projects.map(p=>p.name));
 
       if (projects.length === 0) {
-        const def = { id: 'proj_' + Date.now(), name: '프로젝트 1' };
+        const def = { id: 'proj_' + Date.now(), name: '프로젝트 1', folder_id: null };
         const { error } = await sb.from('projects').insert({ id: def.id, name: def.name });
         if (error) throw error;
         projects.push(def);
