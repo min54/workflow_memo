@@ -1146,7 +1146,30 @@
       justify-content: center;
       z-index: 99999;
       transition: opacity 0.45s ease;
+      overflow: hidden;
     }
+    #login-bg-text {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      justify-content: center;
+      padding: 60px 80px;
+      pointer-events: none;
+      user-select: none;
+    }
+    .lbt-line {
+      font-family: 'Georgia', 'Times New Roman', serif;
+      color: rgba(55, 53, 47, 0.07);
+      line-height: 1.15;
+      letter-spacing: -0.02em;
+      white-space: nowrap;
+    }
+    .lbt-line.xl  { font-size: clamp(48px, 7vw, 96px); font-weight: 700; }
+    .lbt-line.lg  { font-size: clamp(28px, 4vw, 56px); font-weight: 400; font-style: italic; }
+    .lbt-line.sm  { font-size: clamp(14px, 2vw, 22px); font-weight: 300; letter-spacing: 0.12em; margin-top: 18px; }
+    .lbt-line.xs  { font-size: clamp(11px, 1.4vw, 16px); font-weight: 300; letter-spacing: 0.22em; color: rgba(55,53,47,0.05); }
     @keyframes appFadeIn {
       from { opacity: 0; transform: translateY(6px); }
       to   { opacity: 1; transform: translateY(0); }
@@ -1219,6 +1242,14 @@
 
 <!-- 로그인 오버레이 -->
 <div id="login-overlay">
+  <div id="login-bg-text">
+    <div class="lbt-line xl">Clarity</div>
+    <div class="lbt-line xl">begins</div>
+    <div class="lbt-line lg">when the mind</div>
+    <div class="lbt-line lg">finds its structure.</div>
+    <div class="lbt-line sm">ORGANIZE THE COMPLEX · MAXIMIZE THE POTENTIAL</div>
+    <div class="lbt-line xs">A well-mapped mind is the foundation of all great work.</div>
+  </div>
   <div id="login-box">
     <div id="login-logo">
       <svg viewBox="0 0 100 90" xmlns="http://www.w3.org/2000/svg">
