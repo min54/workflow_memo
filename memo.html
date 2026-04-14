@@ -2041,6 +2041,10 @@
 
   // ── 프로젝트 전환 ───────────────────────────────────────────
   async function switchProject(id) {
+    // 텍스트 전체보기가 열려있으면 닫기
+    const ovEl = document.getElementById('text-overview-overlay');
+    if (ovEl) ovEl.classList.remove('open');
+
     await saveCanvas();
     clearCanvas();
     currentProjId = id;
