@@ -837,6 +837,14 @@
       align-items: center;
       justify-content: center;
       z-index: 99999;
+      transition: opacity 0.45s ease;
+    }
+    @keyframes appFadeIn {
+      from { opacity: 0; transform: translateY(6px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    #sidebar, #viewport, #bottom-bar {
+      animation: appFadeIn 0.5s ease both;
     }
 
     #login-box {
@@ -1224,7 +1232,8 @@
   function tryLogin() {
     if (loginIdEl.value === LOGIN_ID && loginPwEl.value === LOGIN_PW) {
       sessionStorage.setItem(AUTH_KEY, '1');
-      loginOverlay.style.display = 'none';
+      loginOverlay.style.opacity = '0';
+      setTimeout(() => { loginOverlay.style.display = 'none'; }, 460);
     } else {
       loginErrEl.textContent = '아이디 또는 패스워드가 올바르지 않습니다.';
       loginPwEl.value = '';
@@ -1236,9 +1245,11 @@
   loginIdEl.addEventListener('keydown', e => { if (e.key === 'Enter') loginPwEl.focus(); });
   loginPwEl.addEventListener('keydown', e => { if (e.key === 'Enter') tryLogin(); });
 
-  // 이미 로그인된 세션이면 바로 숨김
+  // 이미 로그인된 세션이면 빠르게 페이드아웃
   if (sessionStorage.getItem(AUTH_KEY) === '1') {
-    loginOverlay.style.display = 'none';
+    loginOverlay.style.transition = 'opacity 0.25s ease';
+    loginOverlay.style.opacity = '0';
+    setTimeout(() => { loginOverlay.style.display = 'none'; }, 260);
   } else {
     setTimeout(() => loginIdEl.focus(), 50);
   }
