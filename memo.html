@@ -314,58 +314,57 @@
       transform-origin: 0 0;
     }
 
-    /* 프로젝트 구역 레이블 */
+    /* 프로젝트 컬럼 헤더 */
     .ov-proj-header {
       position: absolute;
       font-size: 11px;
       font-weight: 600;
-      color: #c0bebb;
+      color: #b0aea9;
       letter-spacing: 0.08em;
       text-transform: uppercase;
       white-space: nowrap;
       user-select: none;
-      pointer-events: none;
     }
 
-    /* 오버뷰 블록 — 실제 캔버스 블록과 동일한 느낌 */
-    .ov-block {
+    /* 텍스트 카드 */
+    .ov-card {
       position: absolute;
       background: #fff;
       border: 1px solid #e8e7e3;
-      border-radius: 10px;
-      padding: 14px 18px;
-      width: 320px;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.055);
+      border-radius: 12px;
+      padding: 18px 20px;
+      width: 280px;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.06);
       cursor: pointer;
+      transition: box-shadow 0.15s, transform 0.15s;
       box-sizing: border-box;
-      transition: box-shadow 0.15s, border-color 0.15s;
     }
-    .ov-block:hover {
-      box-shadow: 0 6px 20px rgba(0,0,0,0.10);
-      border-color: #d0cec9;
+    .ov-card:hover {
+      box-shadow: 0 6px 24px rgba(0,0,0,0.11);
+      transform: translateY(-2px);
     }
-    .ov-block-title {
-      font-size: 15px;
+    .ov-card-title {
+      font-size: 14px;
       font-weight: 700;
       color: #37352f;
-      margin-bottom: 5px;
-      line-height: 1.45;
+      margin-bottom: 6px;
+      line-height: 1.4;
       white-space: pre-wrap;
       word-break: break-word;
     }
-    .ov-block-title:empty { display: none; }
-    .ov-block-content {
-      font-size: 13px;
-      color: #6b6966;
-      line-height: 1.75;
+    .ov-card-title:empty { display: none; }
+    .ov-card-content {
+      font-size: 12px;
+      color: #787672;
+      line-height: 1.7;
       white-space: pre-wrap;
       word-break: break-word;
-      max-height: 140px;
+      max-height: 120px;
       overflow: hidden;
-      -webkit-mask-image: linear-gradient(to bottom, black 65%, transparent 100%);
-      mask-image: linear-gradient(to bottom, black 65%, transparent 100%);
+      -webkit-mask-image: linear-gradient(to bottom, black 70%, transparent 100%);
+      mask-image: linear-gradient(to bottom, black 70%, transparent 100%);
     }
-    .ov-block-content:empty { display: none; }
+    .ov-card-content:empty { display: none; }
 
     /* ── 저장소 사용량 ── */
     #storage-usage {
@@ -3617,75 +3616,74 @@ function setTool(tool, keepSel = false) {
     const canvasMap = {};
     (allCanvases || []).forEach(c => { canvasMap[c.project_id] = c.data; });
 
-    const PROJ_GAP = 800; // 프로젝트 간 X 간격
+    const COL_W    = 320;  // 컬럼 너비
+    const COL_GAP  = 60;   // 컬럼 간 간격
+    const CARD_W   = 280;
+    const CARD_GAP = 20;
+    const HEADER_H = 36;
 
-    let offsetX = 0;
+    let colX = 0;
 
     for (const proj of allProjects) {
       const data = canvasMap[proj.id];
-      const blocks = (data?.blocks || []).filter(b => {
-        const t = stripHtml(b.title || '').trim();
-        const c = stripHtml(b.content || '').trim();
-        return t || c;
-      });
+      const blocks = data?.blocks || [];
       if (blocks.length === 0) continue;
 
-      // 이 프로젝트 블록들의 최소 wx,wy 구해서 offsetX에 맞게 정렬
-      const minWx = Math.min(...blocks.map(b => b.wx));
-      const minWy = Math.min(...blocks.map(b => b.wy));
-      const maxWx = Math.max(...blocks.map(b => b.wx));
-
-      // 프로젝트 이름 레이블 (블록 위)
+      // 프로젝트 헤더
       const header = document.createElement('div');
       header.className = 'ov-proj-header';
       header.textContent = proj.name;
-      header.style.left = (offsetX) + 'px';
-      header.style.top  = (minWy - 36) + 'px';
+      header.style.left = colX + 'px';
+      header.style.top  = '0px';
       textOvWorld.appendChild(header);
+
+      let cardY = HEADER_H;
 
       for (const b of blocks) {
         const title   = stripHtml(b.title   || '').trim();
         const content = stripHtml(b.content || '').trim();
+        if (!title && !content) continue;
 
-        const block = document.createElement('div');
-        block.className = 'ov-block';
-        // 실제 wx/wy 좌표에 offsetX 더해서 배치
-        block.style.left = (b.wx - minWx + offsetX) + 'px';
-        block.style.top  = b.wy + 'px';
+        const card = document.createElement('div');
+        card.className = 'ov-card';
+        card.style.left = colX + 'px';
+        card.style.top  = cardY + 'px';
+        card.style.width = CARD_W + 'px';
 
         if (title) {
           const t = document.createElement('div');
-          t.className = 'ov-block-title';
+          t.className = 'ov-card-title';
           t.textContent = title;
-          block.appendChild(t);
+          card.appendChild(t);
         }
         if (content) {
           const c = document.createElement('div');
-          c.className = 'ov-block-content';
+          c.className = 'ov-card-content';
           c.textContent = content;
-          block.appendChild(c);
+          card.appendChild(c);
         }
 
-        // 클릭 → 해당 프로젝트·블록 위치로 이동
-        block.addEventListener('click', async () => {
+        // 클릭 → 해당 프로젝트로 이동
+        card.addEventListener('click', async () => {
           textOverlay.classList.remove('open');
-          if (proj.id !== currentProjId) await switchProject(proj.id);
+          if (proj.id !== currentProjId) {
+            await switchProject(proj.id);
+          }
+          // 해당 블록 위치로 이동
           const vw = viewport.clientWidth, vh = viewport.clientHeight;
-          tx = vw / 2 - (b.wx + 160) * scale;
+          tx = vw / 2 - (b.wx + 150) * scale;
           ty = vh / 2 - (b.wy + 60)  * scale;
           refresh();
         });
 
-        textOvWorld.appendChild(block);
+        textOvWorld.appendChild(card);
+        // offsetHeight 측정 (렌더링 후)
+        const h = card.offsetHeight || (title && content ? 140 : 80);
+        cardY += h + CARD_GAP;
       }
 
-      offsetX += (maxWx - minWx) + PROJ_GAP;
+      colX += COL_W + COL_GAP;
     }
-
-    // 전체를 뷰포트 중앙에 맞게 초기 줌/패닝
-    ovScale = 0.55;
-    ovTx = 80; ovTy = 100;
-    applyOvTransform();
   }
 
   textOvCloseBtn.addEventListener('click', () => textOverlay.classList.remove('open'));
