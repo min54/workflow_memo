@@ -3732,8 +3732,8 @@ function setTool(tool, keepSel = false) {
         });
         card.appendChild(gotoBtn);
 
-        // 클릭 → 해당 카드로 줌인
-        card.addEventListener('click', () => zoomToCard(card, colX, cardY, CARD_W));
+        // 클릭 → 해당 카드로 줌인 (offsetLeft/Top으로 실제 위치 읽기)
+        card.addEventListener('click', () => zoomToCard(card));
 
         textOvWorld.appendChild(card);
         // offsetHeight 측정 (렌더링 후)
@@ -3750,7 +3750,7 @@ function setTool(tool, keepSel = false) {
   let ovZoomedCard = null;
   let ovSavedScale, ovSavedTx, ovSavedTy;
 
-  function zoomToCard(card, cardLeft, cardTop, cardW) {
+  function zoomToCard(card) {
     // 이미 줌된 카드 복원
     if (ovZoomedCard && ovZoomedCard !== card) zoomOut(false);
 
@@ -3758,11 +3758,17 @@ function setTool(tool, keepSel = false) {
     ovSavedTx    = ovTx;
     ovSavedTy    = ovTy;
 
+    // 카드 실제 위치 (world 좌표)
+    const cardLeft = card.offsetLeft;
+    const cardTop  = card.offsetTop;
+    const cardW    = card.offsetWidth  || 280;
+    const cardH    = card.offsetHeight || 180;
+
     // 카드를 뷰포트 중앙에 맞게 줌
     const rect   = textOvCanvas.getBoundingClientRect();
-    const targetScale = Math.min(1.6, rect.width / (cardW + 80));
+    const targetScale = Math.min(1.6, rect.width / (cardW + 100));
     const cardCx = cardLeft + cardW / 2;
-    const cardCy = cardTop  + (card.offsetHeight || 180) / 2;
+    const cardCy = cardTop  + cardH / 2;
     const newTx  = rect.width  / 2 - cardCx * targetScale;
     const newTy  = rect.height / 2 - cardCy * targetScale;
 
