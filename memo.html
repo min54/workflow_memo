@@ -1148,6 +1148,50 @@
       transition: opacity 0.45s ease;
       overflow: hidden;
     }
+    /* liquid blobs */
+    .lq-blob {
+      position: absolute;
+      border-radius: 60% 40% 30% 70% / 60% 30% 70% 40%;
+      filter: blur(60px);
+      pointer-events: none;
+      will-change: transform, border-radius;
+    }
+    .lq-blob:nth-child(1) {
+      width: 520px; height: 420px;
+      top: -80px; left: -100px;
+      background: rgba(55,53,47,0.07);
+      animation: blob1 14s ease-in-out infinite;
+    }
+    .lq-blob:nth-child(2) {
+      width: 400px; height: 500px;
+      bottom: -120px; right: -80px;
+      background: rgba(55,53,47,0.06);
+      animation: blob2 18s ease-in-out infinite;
+    }
+    .lq-blob:nth-child(3) {
+      width: 300px; height: 300px;
+      top: 40%; left: 30%;
+      background: rgba(55,53,47,0.045);
+      animation: blob3 22s ease-in-out infinite;
+    }
+    @keyframes blob1 {
+      0%   { border-radius: 60% 40% 30% 70% / 60% 30% 70% 40%; transform: translate(0,0) scale(1); }
+      33%  { border-radius: 30% 60% 70% 40% / 50% 60% 30% 60%; transform: translate(40px, 30px) scale(1.08); }
+      66%  { border-radius: 70% 30% 50% 50% / 30% 70% 50% 50%; transform: translate(-20px, 50px) scale(0.95); }
+      100% { border-radius: 60% 40% 30% 70% / 60% 30% 70% 40%; transform: translate(0,0) scale(1); }
+    }
+    @keyframes blob2 {
+      0%   { border-radius: 40% 60% 60% 40% / 70% 30% 70% 30%; transform: translate(0,0) scale(1); }
+      33%  { border-radius: 70% 30% 40% 60% / 40% 60% 30% 70%; transform: translate(-50px,-30px) scale(1.12); }
+      66%  { border-radius: 30% 70% 70% 30% / 50% 50% 60% 40%; transform: translate(30px,-60px) scale(0.9); }
+      100% { border-radius: 40% 60% 60% 40% / 70% 30% 70% 30%; transform: translate(0,0) scale(1); }
+    }
+    @keyframes blob3 {
+      0%   { border-radius: 50% 50% 40% 60% / 40% 60% 50% 50%; transform: translate(0,0) rotate(0deg); }
+      50%  { border-radius: 30% 70% 60% 40% / 60% 40% 70% 30%; transform: translate(-60px,40px) rotate(120deg); }
+      100% { border-radius: 50% 50% 40% 60% / 40% 60% 50% 50%; transform: translate(0,0) rotate(360deg); }
+    }
+
     #login-bg-text {
       position: absolute;
       inset: 0;
@@ -1158,18 +1202,19 @@
       padding: 60px 80px;
       pointer-events: none;
       user-select: none;
+      filter: url(#lq-filter);
     }
     .lbt-line {
       font-family: 'Georgia', 'Times New Roman', serif;
-      color: rgba(55, 53, 47, 0.18);
+      color: rgba(55, 53, 47, 0.22);
       line-height: 1.15;
       letter-spacing: -0.02em;
       white-space: nowrap;
     }
     .lbt-line.xl  { font-size: clamp(48px, 7vw, 96px); font-weight: 700; }
     .lbt-line.lg  { font-size: clamp(28px, 4vw, 56px); font-weight: 400; font-style: italic; }
-    .lbt-line.sm  { font-size: clamp(14px, 2vw, 22px); font-weight: 300; letter-spacing: 0.12em; margin-top: 18px; }
-    .lbt-line.xs  { font-size: clamp(11px, 1.4vw, 16px); font-weight: 300; letter-spacing: 0.22em; color: rgba(55,53,47,0.13); }
+    .lbt-line.sm  { font-size: clamp(14px, 2vw, 22px); font-weight: 300; letter-spacing: 0.12em; margin-top: 18px; color: rgba(55,53,47,0.16); }
+    .lbt-line.xs  { font-size: clamp(11px, 1.4vw, 16px); font-weight: 300; letter-spacing: 0.22em; color: rgba(55,53,47,0.12); }
     @keyframes appFadeIn {
       from { opacity: 0; transform: translateY(6px); }
       to   { opacity: 1; transform: translateY(0); }
@@ -1240,8 +1285,25 @@
 </head>
 <body>
 
+<!-- liquid SVG filter -->
+<svg style="position:absolute;width:0;height:0;overflow:hidden" aria-hidden="true">
+  <defs>
+    <filter id="lq-filter" x="-20%" y="-20%" width="140%" height="140%">
+      <feTurbulence type="fractalNoise" baseFrequency="0.008 0.012" numOctaves="3" seed="8" result="noise">
+        <animate attributeName="baseFrequency" dur="16s" values="0.008 0.012;0.014 0.008;0.008 0.012" repeatCount="indefinite"/>
+      </feTurbulence>
+      <feDisplacementMap in="SourceGraphic" in2="noise" scale="14" xChannelSelector="R" yChannelSelector="G"/>
+    </filter>
+  </defs>
+</svg>
+
 <!-- 로그인 오버레이 -->
 <div id="login-overlay">
+  <!-- morphing blobs -->
+  <div class="lq-blob"></div>
+  <div class="lq-blob"></div>
+  <div class="lq-blob"></div>
+
   <div id="login-bg-text">
     <div class="lbt-line xl">Clarity</div>
     <div class="lbt-line xl">begins</div>
