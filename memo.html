@@ -4559,28 +4559,39 @@ function setTool(tool, keepSel = false) {
 
     const DEFAULT_ID = 'blsjKG2kZok';
     let currentId = DEFAULT_ID;
+    let loaded = false;
 
     function embedSrc(id) {
-      return `https://www.youtube.com/embed/${id}?autoplay=1&controls=1&rel=0`;
+      // enablejsapi=0, origin 생략 — 계정 연동 최소화
+      return `https://www.youtube.com/embed/${id}?autoplay=1&controls=1&rel=0&modestbranding=1`;
+    }
+
+    // 최초 1회만 로드 — 이후엔 src 건드리지 않아 세션 중복 방지
+    function ensureLoaded(id) {
+      if (!loaded || iframe.src === '' || iframe.src === 'about:blank') {
+        iframe.src = embedSrc(id || currentId);
+        loaded = true;
+      }
     }
 
     function extractVideoId(url) {
       url = url.trim();
-      // youtu.be/ID
       let m = url.match(/youtu\.be\/([A-Za-z0-9_-]{11})/);
       if (m) return m[1];
-      // ?v=ID or &v=ID
       m = url.match(/[?&]v=([A-Za-z0-9_-]{11})/);
       if (m) return m[1];
-      // 11자 그대로 입력했을 때
       if (/^[A-Za-z0-9_-]{11}$/.test(url)) return url;
       return null;
     }
 
     function playId(id) {
       currentId = id;
-      iframe.src = embedSrc(id);
+      loaded = false; // 새 영상은 강제 재로드
+      ensureLoaded(id);
     }
+
+    // 페이지 로드 시 바로 1회 로드 (세션 1개만 생성)
+    ensureLoaded();
 
     goBtn.addEventListener('click', () => {
       const id = extractVideoId(urlInput.value);
@@ -4596,15 +4607,12 @@ function setTool(tool, keepSel = false) {
 
     function showPanel() {
       clearTimeout(hideTimer);
-      if (!panel.classList.contains('open')) {
-        panel.classList.add('open');
-        if (!iframe.src || iframe.src === 'about:blank') iframe.src = embedSrc(currentId);
-      }
+      panel.classList.add('open');
     }
     function hidePanel() {
       hideTimer = setTimeout(() => {
         panel.classList.remove('open');
-        // 음악은 계속 재생 — src 건드리지 않음
+        // src 절대 건드리지 않음 — 세션 유지, 음악 계속 재생
       }, 300);
     }
 
@@ -4614,7 +4622,8 @@ function setTool(tool, keepSel = false) {
     closeB.addEventListener('click', () => {
       clearTimeout(hideTimer);
       panel.classList.remove('open');
-      iframe.src = ''; // ✕ 버튼만 완전 정지
+      iframe.src = '';  // ✕ 버튼만 완전 정지
+      loaded = false;
     });
   })();
 </script>
