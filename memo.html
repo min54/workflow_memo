@@ -607,6 +607,21 @@
     }
 
     #bottom-bar.drag-over { background: #f7f6f3; border-color: #37352f; }
+    #viewport.file-drag-over::after {
+      content: '파일을 여기에 놓으세요';
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(74, 144, 217, 0.06);
+      border: 2px dashed #4a90d9;
+      font-size: 16px;
+      color: #4a90d9;
+      letter-spacing: 0.04em;
+      pointer-events: none;
+      z-index: 200;
+    }
 
     /* 업로드 버튼 */
     #upload-area {
@@ -2725,7 +2740,7 @@ function setTool(tool, keepSel = false) {
   }
 
   // ── 이미지 처리 ──────────────────────────────────────────
-  async function processImage(file) {
+  async function processImage(file, dropWx, dropWy) {
     const defaultLabel = file.name.replace(/\.[^.]+$/, '');
     const label = await askFileName(defaultLabel);
     if (label === null) return;
@@ -2749,8 +2764,8 @@ function setTool(tool, keepSel = false) {
             const worldW = THUMB_W;
             const worldH = Math.round(THUMB_W * (ih / iw));
             const vw = viewport.clientWidth, vh = viewport.clientHeight;
-            const wx = (vw / 2 - tx) / scale - worldW / 2 + (Math.random() - 0.5) * 60;
-            const wy = (vh / 2 - ty) / scale - worldH / 2 + (Math.random() - 0.5) * 60;
+            const wx = dropWx !== undefined ? dropWx - worldW / 2 : (vw / 2 - tx) / scale - worldW / 2 + (Math.random() - 0.5) * 60;
+            const wy = dropWy !== undefined ? dropWy - worldH / 2 : (vh / 2 - ty) / scale - worldH / 2 + (Math.random() - 0.5) * 60;
             const b = makeImgBlock(wx, wy, src, worldW, worldH, label);
             addStripCard(b);
             save();
@@ -2826,7 +2841,7 @@ function setTool(tool, keepSel = false) {
     return b;
   }
 
-  async function processFile(file) {
+  async function processFile(file, dropWx, dropWy) {
     const ext = file.name.split('.').pop().toLowerCase();
     const fileType = ['xls','xlsx','csv'].includes(ext)      ? 'excel'
                    : ext === 'pdf'                            ? 'pdf'
@@ -2844,8 +2859,8 @@ function setTool(tool, keepSel = false) {
     try {
       const src = await uploadToStorage(file, finalName);
       const vw = viewport.clientWidth, vh = viewport.clientHeight;
-      const wx = (vw / 2 - tx) / scale - 60 + (Math.random() - 0.5) * 60;
-      const wy = (vh / 2 - ty) / scale - 40 + (Math.random() - 0.5) * 60;
+      const wx = dropWx !== undefined ? dropWx - 60 : (vw / 2 - tx) / scale - 60 + (Math.random() - 0.5) * 60;
+      const wy = dropWy !== undefined ? dropWy - 20 : (vh / 2 - ty) / scale - 40 + (Math.random() - 0.5) * 60;
       const b = makeFileBlock(wx, wy, finalName, fileType, src);
       addFileStripCard(b);
       save();
@@ -2875,6 +2890,31 @@ function setTool(tool, keepSel = false) {
       if (f.type.startsWith('image/')) processImage(f);
       else processFile(f);
     }
+  });
+
+  // ── 캔버스 직접 드래그 업로드 ─────────────────────────────
+  viewport.addEventListener('dragover', e => {
+    if (!e.dataTransfer.types.includes('Files')) return;
+    e.preventDefault();
+    viewport.classList.add('file-drag-over');
+  });
+  viewport.addEventListener('dragleave', e => {
+    if (!viewport.contains(e.relatedTarget))
+      viewport.classList.remove('file-drag-over');
+  });
+  viewport.addEventListener('drop', e => {
+    if (!e.dataTransfer.files.length) return;
+    e.preventDefault();
+    viewport.classList.remove('file-drag-over');
+    const rect = viewport.getBoundingClientRect();
+    const baseWx = (e.clientX - rect.left - tx) / scale;
+    const baseWy = (e.clientY - rect.top  - ty) / scale;
+    [...e.dataTransfer.files].forEach((f, i) => {
+      const offsetWx = baseWx + i * 20;
+      const offsetWy = baseWy + i * 20;
+      if (f.type.startsWith('image/')) processImage(f, offsetWx, offsetWy);
+      else processFile(f, offsetWx, offsetWy);
+    });
   });
 
   // ── localStorage → Supabase 마이그레이션 ────────────────────
