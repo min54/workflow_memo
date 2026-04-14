@@ -393,6 +393,19 @@
       text-decoration-thickness: 2px;
     }
 
+    .highlight-label {
+      font-size: 13px;
+      font-weight: 800;
+      width: 22px;
+      height: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 3px;
+      color: #37352f;
+      letter-spacing: -0.5px;
+    }
+
     .tool-btn::after {
       content: attr(data-tip);
       position: absolute;
@@ -893,6 +906,16 @@
   </button>
   <button class="tool-btn color-tool-btn" id="color-red" data-tip="빨간색" data-color="#e03e3e">
     <span class="color-label" style="color:#e03e3e;">A</span>
+  </button>
+  <div style="height:1px;background:#e3e2de;margin:4px 2px;"></div>
+  <button class="tool-btn" id="hl-yellow" data-tip="형광펜 (노란색)" data-highlight="#FFE566">
+    <span class="highlight-label" style="background:#FFE566;">H</span>
+  </button>
+  <button class="tool-btn" id="hl-green" data-tip="형광펜 (초록색)" data-highlight="#B2F2BB">
+    <span class="highlight-label" style="background:#B2F2BB;">H</span>
+  </button>
+  <button class="tool-btn" id="hl-pink" data-tip="형광펜 (분홍색)" data-highlight="#FFC9C9">
+    <span class="highlight-label" style="background:#FFC9C9;">H</span>
   </button>
   <div style="height:1px;background:#e3e2de;margin:4px 2px;"></div>
   <button class="tool-btn" id="btn-copy-selected" data-tip="선택 복사 (Ctrl+C)" style="opacity:0.3;pointer-events:none;">
@@ -1972,6 +1995,31 @@
   const btnSelect  = document.getElementById('btn-select');
 
   // ── 색상 버튼 ─────────────────────────────────────────────
+  // ── 형광펜 ──────────────────────────────────────────────────
+  document.querySelectorAll('[data-highlight]').forEach(btn => {
+    btn.addEventListener('mousedown', e => e.preventDefault()); // 선택 유지
+    btn.addEventListener('click', () => {
+      const color = btn.dataset.highlight;
+      const sel = window.getSelection();
+      if (!sel || sel.rangeCount === 0 || sel.isCollapsed) return;
+      const range = sel.getRangeAt(0);
+      const node = range.commonAncestorContainer;
+      const editable = node.nodeType === 1
+        ? node.closest('[contenteditable]')
+        : node.parentElement?.closest('[contenteditable]');
+      if (!editable) return;
+
+      // 이미 같은 색 형광펜이면 제거, 아니면 적용
+      const current = document.queryCommandValue('hiliteColor');
+      if (current === color) {
+        document.execCommand('hiliteColor', false, 'transparent');
+      } else {
+        document.execCommand('hiliteColor', false, color);
+      }
+      save();
+    });
+  });
+
   document.querySelectorAll('.color-tool-btn').forEach(btn => {
     // mousedown에 preventDefault → contenteditable 포커스/선택 유지
     btn.addEventListener('mousedown', e => e.preventDefault());
