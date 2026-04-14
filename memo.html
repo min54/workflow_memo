@@ -1570,8 +1570,8 @@
     if (ACCOUNTS[id] && ACCOUNTS[id] === pw) {
       sessionStorage.setItem(AUTH_KEY,  '1');
       sessionStorage.setItem(OWNER_KEY, id);  // '1' 또는 '2'
-      loginOverlay.style.opacity = '0';
-      setTimeout(() => { loginOverlay.style.display = 'none'; }, 460);
+      // owner가 올바르게 적용되도록 페이지 리로드
+      window.location.reload();
     } else {
       loginErrEl.textContent = '아이디 또는 패스워드가 올바르지 않습니다.';
       loginPwEl.value = '';
