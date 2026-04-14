@@ -1221,6 +1221,17 @@
   </div>
 </div>
 
+<!-- 텍스트 전체 보기 오버레이 -->
+<div id="text-overview-overlay">
+  <div id="text-overview-header">
+    <h2>텍스트 전체 보기</h2>
+    <button id="text-overview-close">✕</button>
+  </div>
+  <div id="text-overview-canvas">
+    <div id="text-overview-world"></div>
+  </div>
+</div>
+
 <!-- 검색 모달 -->
 <div id="search-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.4);z-index:3000;align-items:flex-start;justify-content:center;padding-top:80px;">
   <div style="background:#fff;border-radius:14px;width:540px;max-height:70vh;display:flex;flex-direction:column;box-shadow:0 12px 48px rgba(0,0,0,0.25);overflow:hidden;">
@@ -3723,17 +3734,6 @@ function setTool(tool, keepSel = false) {
   });
 
 </script>
-
-<!-- 텍스트 전체 보기 오버레이 -->
-<div id="text-overview-overlay">
-  <div id="text-overview-header">
-    <h2>텍스트 전체 보기</h2>
-    <button id="text-overview-close">✕</button>
-  </div>
-  <div id="text-overview-canvas">
-    <div id="text-overview-world"></div>
-  </div>
-</div>
 
 </body>
 </html>
