@@ -607,20 +607,17 @@
     }
 
     #bottom-bar.drag-over { background: #f7f6f3; border-color: #37352f; }
-    #viewport.file-drag-over::after {
-      content: '파일을 여기에 놓으세요';
+    #canvas-drop-indicator {
+      display: none;
       position: absolute;
-      inset: 0;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      background: rgba(74, 144, 217, 0.06);
+      width: 110px;
+      height: 80px;
       border: 2px dashed #4a90d9;
-      font-size: 16px;
-      color: #4a90d9;
-      letter-spacing: 0.04em;
+      border-radius: 8px;
+      background: rgba(74, 144, 217, 0.07);
       pointer-events: none;
       z-index: 200;
+      transform: translate(-50%, -50%);
     }
 
     /* 업로드 버튼 */
@@ -2893,19 +2890,26 @@ function setTool(tool, keepSel = false) {
   });
 
   // ── 캔버스 직접 드래그 업로드 ─────────────────────────────
+  const dropIndicator = document.createElement('div');
+  dropIndicator.id = 'canvas-drop-indicator';
+  viewport.appendChild(dropIndicator);
+
   viewport.addEventListener('dragover', e => {
     if (!e.dataTransfer.types.includes('Files')) return;
     e.preventDefault();
-    viewport.classList.add('file-drag-over');
+    const rect = viewport.getBoundingClientRect();
+    dropIndicator.style.left = (e.clientX - rect.left) + 'px';
+    dropIndicator.style.top  = (e.clientY - rect.top)  + 'px';
+    dropIndicator.style.display = 'block';
   });
   viewport.addEventListener('dragleave', e => {
     if (!viewport.contains(e.relatedTarget))
-      viewport.classList.remove('file-drag-over');
+      dropIndicator.style.display = 'none';
   });
   viewport.addEventListener('drop', e => {
     if (!e.dataTransfer.files.length) return;
     e.preventDefault();
-    viewport.classList.remove('file-drag-over');
+    dropIndicator.style.display = 'none';
     const rect = viewport.getBoundingClientRect();
     const baseWx = (e.clientX - rect.left - tx) / scale;
     const baseWy = (e.clientY - rect.top  - ty) / scale;
