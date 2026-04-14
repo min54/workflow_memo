@@ -1347,15 +1347,75 @@
     const del = document.createElement('button');
     del.className = 'folder-del';
     del.innerHTML = '✕';
-    del.title = '폴더 삭제 (프로젝트는 유지)';
-    del.addEventListener('click', async e => {
+    del.title = '폴더 삭제';
+    del.addEventListener('click', e => {
       e.stopPropagation();
-      if (!confirm(`"${f.name}" 폴더를 삭제할까요?\n(프로젝트는 삭제되지 않습니다)`)) return;
-      await sb.from('folders').delete().eq('id', f.id);
-      // folder_id가 SET NULL 되므로 projects 상태 업데이트
-      projects.forEach(p => { if (p.folder_id === f.id) p.folder_id = null; });
-      folders = folders.filter(x => x.id !== f.id);
-      renderSidebar();
+      if (row.dataset.confirming) return;
+      row.dataset.confirming = '1';
+
+      // 기존 row 내용 숨기기
+      arrow.style.display = 'none';
+      icon.style.display  = 'none';
+      name.style.display  = 'none';
+      del.style.display   = 'none';
+
+      const innerCount = projects.filter(p => p.folder_id === f.id).length;
+
+      const confirmRow = document.createElement('div');
+      confirmRow.style.cssText = 'display:flex;align-items:center;gap:6px;width:100%;';
+
+      const msg = document.createElement('span');
+      msg.style.cssText = 'font-size:11px;color:#e03e3e;flex:1;line-height:1.3;';
+      msg.textContent = innerCount > 0
+        ? `프로젝트 ${innerCount}개도 삭제됩니다`
+        : '삭제할까요?';
+
+      const btnOk = document.createElement('button');
+      btnOk.textContent = '삭제';
+      btnOk.style.cssText = 'font-size:11px;padding:2px 8px;border:none;background:#e03e3e;color:#fff;border-radius:4px;cursor:pointer;flex-shrink:0;';
+
+      const btnCancel = document.createElement('button');
+      btnCancel.textContent = '취소';
+      btnCancel.style.cssText = 'font-size:11px;padding:2px 8px;border:1px solid #e3e2de;background:#fff;color:#888;border-radius:4px;cursor:pointer;flex-shrink:0;';
+
+      confirmRow.appendChild(msg);
+      confirmRow.appendChild(btnOk);
+      confirmRow.appendChild(btnCancel);
+      row.appendChild(confirmRow);
+
+      function restore() {
+        confirmRow.remove();
+        arrow.style.display = '';
+        icon.style.display  = '';
+        name.style.display  = '';
+        del.style.display   = '';
+        delete row.dataset.confirming;
+      }
+
+      btnOk.addEventListener('click', async e => {
+        e.stopPropagation();
+        // 폴더 내 프로젝트 삭제
+        const innerProjects = projects.filter(p => p.folder_id === f.id);
+        for (const p of innerProjects) {
+          await sb.from('projects').delete().eq('id', p.id);
+          if (currentProjId === p.id) currentProjId = null;
+        }
+        projects = projects.filter(p => p.folder_id !== f.id);
+        // 폴더 삭제
+        await sb.from('folders').delete().eq('id', f.id);
+        folders = folders.filter(x => x.id !== f.id);
+        // 현재 프로젝트가 삭제됐으면 다른 프로젝트로 전환
+        if (currentProjId === null && projects.length > 0) {
+          await switchProject(projects[0].id);
+        } else {
+          renderSidebar();
+        }
+      });
+
+      btnCancel.addEventListener('click', e => {
+        e.stopPropagation();
+        restore();
+      });
     });
 
     // ── 폴더 토글 ──
