@@ -366,6 +366,71 @@
     }
     .ov-card-content:empty { display: none; }
 
+    /* 텍스트 상세 팝업 */
+    #ov-detail-popup {
+      display: none;
+      position: absolute;
+      inset: 0;
+      background: rgba(0,0,0,0.35);
+      z-index: 100;
+      align-items: center;
+      justify-content: center;
+    }
+    #ov-detail-popup.open { display: flex; animation: appFadeIn 0.2s ease both; }
+    #ov-detail-box {
+      background: #fff;
+      border-radius: 14px;
+      padding: 32px 36px 24px;
+      width: min(560px, 90vw);
+      max-height: 70vh;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      box-shadow: 0 12px 48px rgba(0,0,0,0.2);
+      overflow: hidden;
+    }
+    #ov-detail-title {
+      font-size: 18px;
+      font-weight: 700;
+      color: #37352f;
+      line-height: 1.45;
+      white-space: pre-wrap;
+      word-break: break-word;
+      flex-shrink: 0;
+    }
+    #ov-detail-title:empty { display: none; }
+    #ov-detail-content {
+      font-size: 14px;
+      color: #6b6966;
+      line-height: 1.85;
+      white-space: pre-wrap;
+      word-break: break-word;
+      overflow-y: auto;
+      flex: 1;
+    }
+    #ov-detail-content:empty { display: none; }
+    #ov-detail-footer {
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+      flex-shrink: 0;
+      padding-top: 8px;
+      border-top: 1px solid #f0efec;
+    }
+    .ov-detail-btn {
+      padding: 7px 18px;
+      border-radius: 8px;
+      font-size: 13px;
+      font-family: inherit;
+      cursor: pointer;
+      border: none;
+      transition: background 0.15s;
+    }
+    #ov-detail-goto    { background: #37352f; color: #fff; }
+    #ov-detail-goto:hover { background: #1a1915; }
+    #ov-detail-dismiss { background: #f0efec; color: #37352f; }
+    #ov-detail-dismiss:hover { background: #e5e4e0; }
+
     /* ── 저장소 사용량 ── */
     #storage-usage {
       padding: 6px 2px 2px;
@@ -1229,6 +1294,16 @@
   </div>
   <div id="text-overview-canvas">
     <div id="text-overview-world"></div>
+  </div>
+  <div id="ov-detail-popup">
+    <div id="ov-detail-box">
+      <div id="ov-detail-title"></div>
+      <div id="ov-detail-content"></div>
+      <div id="ov-detail-footer">
+        <button class="ov-detail-btn" id="ov-detail-dismiss">닫기</button>
+        <button class="ov-detail-btn" id="ov-detail-goto">이 블록으로 이동 →</button>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -3663,17 +3738,9 @@ function setTool(tool, keepSel = false) {
           card.appendChild(c);
         }
 
-        // 클릭 → 해당 프로젝트로 이동
-        card.addEventListener('click', async () => {
-          textOverlay.classList.remove('open');
-          if (proj.id !== currentProjId) {
-            await switchProject(proj.id);
-          }
-          // 해당 블록 위치로 이동
-          const vw = viewport.clientWidth, vh = viewport.clientHeight;
-          tx = vw / 2 - (b.wx + 150) * scale;
-          ty = vh / 2 - (b.wy + 60)  * scale;
-          refresh();
+        // 클릭 → 상세 팝업
+        card.addEventListener('click', () => {
+          showOvDetail(title, content, proj.id, b.wx, b.wy);
         });
 
         textOvWorld.appendChild(card);
@@ -3685,6 +3752,37 @@ function setTool(tool, keepSel = false) {
       colX += COL_W + COL_GAP;
     }
   }
+
+  // ── 텍스트 상세 팝업 ──────────────────────────────────────
+  const ovDetailPopup   = document.getElementById('ov-detail-popup');
+  const ovDetailTitle   = document.getElementById('ov-detail-title');
+  const ovDetailContent = document.getElementById('ov-detail-content');
+  const ovDetailGoto    = document.getElementById('ov-detail-goto');
+  const ovDetailDismiss = document.getElementById('ov-detail-dismiss');
+
+  let _ovGotoFn = null;
+
+  function showOvDetail(title, content, projId, wx, wy) {
+    ovDetailTitle.textContent   = title;
+    ovDetailContent.textContent = content;
+    ovDetailPopup.classList.add('open');
+
+    _ovGotoFn = async () => {
+      ovDetailPopup.classList.remove('open');
+      textOverlay.classList.remove('open');
+      if (projId !== currentProjId) await switchProject(projId);
+      const vw = viewport.clientWidth, vh = viewport.clientHeight;
+      tx = vw / 2 - (wx + 150) * scale;
+      ty = vh / 2 - (wy + 60)  * scale;
+      refresh();
+    };
+  }
+
+  ovDetailGoto.addEventListener('click', () => { if (_ovGotoFn) _ovGotoFn(); });
+  ovDetailDismiss.addEventListener('click', () => ovDetailPopup.classList.remove('open'));
+  ovDetailPopup.addEventListener('click', e => {
+    if (e.target === ovDetailPopup) ovDetailPopup.classList.remove('open');
+  });
 
   textOvCloseBtn.addEventListener('click', () => textOverlay.classList.remove('open'));
   document.getElementById('btn-text-overview').addEventListener('click', openTextOverview);
