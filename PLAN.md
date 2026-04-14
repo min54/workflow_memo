@@ -77,3 +77,8 @@
 - [ ] 실시간 공동 편집 (Supabase Realtime)
 - [ ] 실시간 커서 표시
 - [ ] Google OAuth 로그인
+
+### 인프라 (용량 확장)
+- [ ] 파일 저장소 Cloudflare R2 전환 (현재 Supabase Storage 1GB 무료 → R2 10GB 무료, egress 무제한)
+  - Supabase DB는 유지, 파일/이미지만 R2로 교체
+  - 구글 드라이브급 대용량 파일 저장 목표
