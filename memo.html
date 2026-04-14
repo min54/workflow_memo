@@ -312,7 +312,59 @@
       top: 0; left: 0;
       width: 0; height: 0;
       transform-origin: 0 0;
+      transition: transform 0.38s cubic-bezier(0.4, 0, 0.2, 1);
     }
+    #text-overview-world.no-transition { transition: none; }
+
+    /* 뒤로가기 버튼 */
+    #ov-back-btn {
+      display: none;
+      position: absolute;
+      top: 14px; left: 14px;
+      z-index: 10;
+      background: #fff;
+      border: 1px solid #e3e2de;
+      border-radius: 10px;
+      padding: 7px 14px;
+      font-size: 13px;
+      font-family: inherit;
+      color: #37352f;
+      cursor: pointer;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+      transition: background 0.15s;
+    }
+    #ov-back-btn:hover { background: #f0efec; }
+    #ov-back-btn.visible { display: block; animation: appFadeIn 0.2s ease both; }
+
+    /* 이동 버튼 (줌인 시 카드 하단에) */
+    .ov-card-goto {
+      display: none;
+      margin-top: 16px;
+      padding: 8px 18px;
+      background: #37352f;
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      font-size: 13px;
+      font-family: inherit;
+      cursor: pointer;
+      transition: background 0.15s;
+      align-self: flex-start;
+    }
+    .ov-card-goto:hover { background: #1a1915; }
+    .ov-card.zoomed {
+      box-shadow: 0 8px 32px rgba(0,0,0,0.13);
+      border-color: #d0cec9;
+      cursor: default;
+      display: flex;
+      flex-direction: column;
+    }
+    .ov-card.zoomed .ov-card-content {
+      max-height: none;
+      -webkit-mask-image: none;
+      mask-image: none;
+    }
+    .ov-card.zoomed .ov-card-goto { display: block; }
 
     /* 프로젝트 컬럼 헤더 */
     .ov-proj-header {
@@ -366,70 +418,6 @@
     }
     .ov-card-content:empty { display: none; }
 
-    /* 텍스트 상세 팝업 */
-    #ov-detail-popup {
-      display: none;
-      position: absolute;
-      inset: 0;
-      background: rgba(0,0,0,0.35);
-      z-index: 100;
-      align-items: center;
-      justify-content: center;
-    }
-    #ov-detail-popup.open { display: flex; animation: appFadeIn 0.2s ease both; }
-    #ov-detail-box {
-      background: #fff;
-      border-radius: 14px;
-      padding: 32px 36px 24px;
-      width: min(560px, 90vw);
-      max-height: 70vh;
-      display: flex;
-      flex-direction: column;
-      gap: 14px;
-      box-shadow: 0 12px 48px rgba(0,0,0,0.2);
-      overflow: hidden;
-    }
-    #ov-detail-title {
-      font-size: 18px;
-      font-weight: 700;
-      color: #37352f;
-      line-height: 1.45;
-      white-space: pre-wrap;
-      word-break: break-word;
-      flex-shrink: 0;
-    }
-    #ov-detail-title:empty { display: none; }
-    #ov-detail-content {
-      font-size: 14px;
-      color: #6b6966;
-      line-height: 1.85;
-      white-space: pre-wrap;
-      word-break: break-word;
-      overflow-y: auto;
-      flex: 1;
-    }
-    #ov-detail-content:empty { display: none; }
-    #ov-detail-footer {
-      display: flex;
-      justify-content: flex-end;
-      gap: 8px;
-      flex-shrink: 0;
-      padding-top: 8px;
-      border-top: 1px solid #f0efec;
-    }
-    .ov-detail-btn {
-      padding: 7px 18px;
-      border-radius: 8px;
-      font-size: 13px;
-      font-family: inherit;
-      cursor: pointer;
-      border: none;
-      transition: background 0.15s;
-    }
-    #ov-detail-goto    { background: #37352f; color: #fff; }
-    #ov-detail-goto:hover { background: #1a1915; }
-    #ov-detail-dismiss { background: #f0efec; color: #37352f; }
-    #ov-detail-dismiss:hover { background: #e5e4e0; }
 
     /* ── 저장소 사용량 ── */
     #storage-usage {
@@ -1293,17 +1281,8 @@
     <button id="text-overview-close">✕</button>
   </div>
   <div id="text-overview-canvas">
+    <button id="ov-back-btn">← 목록으로</button>
     <div id="text-overview-world"></div>
-  </div>
-  <div id="ov-detail-popup">
-    <div id="ov-detail-box">
-      <div id="ov-detail-title"></div>
-      <div id="ov-detail-content"></div>
-      <div id="ov-detail-footer">
-        <button class="ov-detail-btn" id="ov-detail-dismiss">닫기</button>
-        <button class="ov-detail-btn" id="ov-detail-goto">이 블록으로 이동 →</button>
-      </div>
-    </div>
   </div>
 </div>
 
@@ -3738,10 +3717,23 @@ function setTool(tool, keepSel = false) {
           card.appendChild(c);
         }
 
-        // 클릭 → 상세 팝업
-        card.addEventListener('click', () => {
-          showOvDetail(title, content, proj.id, b.wx, b.wy);
+        // 각 카드에 이동 버튼 추가
+        const gotoBtn = document.createElement('button');
+        gotoBtn.className = 'ov-card-goto';
+        gotoBtn.textContent = '이 블록으로 이동 →';
+        gotoBtn.addEventListener('click', async e => {
+          e.stopPropagation();
+          textOverlay.classList.remove('open');
+          if (proj.id !== currentProjId) await switchProject(proj.id);
+          const vw = viewport.clientWidth, vh = viewport.clientHeight;
+          tx = vw / 2 - (b.wx + 150) * scale;
+          ty = vh / 2 - (b.wy + 60)  * scale;
+          refresh();
         });
+        card.appendChild(gotoBtn);
+
+        // 클릭 → 해당 카드로 줌인
+        card.addEventListener('click', () => zoomToCard(card, colX, cardY, CARD_W));
 
         textOvWorld.appendChild(card);
         // offsetHeight 측정 (렌더링 후)
@@ -3753,38 +3745,53 @@ function setTool(tool, keepSel = false) {
     }
   }
 
-  // ── 텍스트 상세 팝업 ──────────────────────────────────────
-  const ovDetailPopup   = document.getElementById('ov-detail-popup');
-  const ovDetailTitle   = document.getElementById('ov-detail-title');
-  const ovDetailContent = document.getElementById('ov-detail-content');
-  const ovDetailGoto    = document.getElementById('ov-detail-goto');
-  const ovDetailDismiss = document.getElementById('ov-detail-dismiss');
+  // ── 카드 줌인/아웃 ────────────────────────────────────────
+  const ovBackBtn = document.getElementById('ov-back-btn');
+  let ovZoomedCard = null;
+  let ovSavedScale, ovSavedTx, ovSavedTy;
 
-  let _ovGotoFn = null;
+  function zoomToCard(card, cardLeft, cardTop, cardW) {
+    // 이미 줌된 카드 복원
+    if (ovZoomedCard && ovZoomedCard !== card) zoomOut(false);
 
-  function showOvDetail(title, content, projId, wx, wy) {
-    ovDetailTitle.textContent   = title;
-    ovDetailContent.textContent = content;
-    ovDetailPopup.classList.add('open');
+    ovSavedScale = ovScale;
+    ovSavedTx    = ovTx;
+    ovSavedTy    = ovTy;
 
-    _ovGotoFn = async () => {
-      ovDetailPopup.classList.remove('open');
-      textOverlay.classList.remove('open');
-      if (projId !== currentProjId) await switchProject(projId);
-      const vw = viewport.clientWidth, vh = viewport.clientHeight;
-      tx = vw / 2 - (wx + 150) * scale;
-      ty = vh / 2 - (wy + 60)  * scale;
-      refresh();
-    };
+    // 카드를 뷰포트 중앙에 맞게 줌
+    const rect   = textOvCanvas.getBoundingClientRect();
+    const targetScale = Math.min(1.6, rect.width / (cardW + 80));
+    const cardCx = cardLeft + cardW / 2;
+    const cardCy = cardTop  + (card.offsetHeight || 180) / 2;
+    const newTx  = rect.width  / 2 - cardCx * targetScale;
+    const newTy  = rect.height / 2 - cardCy * targetScale;
+
+    ovScale = targetScale; ovTx = newTx; ovTy = newTy;
+    applyOvTransform();
+
+    card.classList.add('zoomed');
+    ovZoomedCard = card;
+    ovBackBtn.classList.add('visible');
+
+    // 패닝 비활성화
+    textOvCanvas.style.pointerEvents = 'none';
+    card.style.pointerEvents = 'auto';
+    ovBackBtn.style.pointerEvents = 'auto';
   }
 
-  ovDetailGoto.addEventListener('click', () => { if (_ovGotoFn) _ovGotoFn(); });
-  ovDetailDismiss.addEventListener('click', () => ovDetailPopup.classList.remove('open'));
-  ovDetailPopup.addEventListener('click', e => {
-    if (e.target === ovDetailPopup) ovDetailPopup.classList.remove('open');
-  });
+  function zoomOut(animate = true) {
+    if (!animate) textOvWorld.classList.add('no-transition');
+    ovScale = ovSavedScale; ovTx = ovSavedTx; ovTy = ovSavedTy;
+    applyOvTransform();
+    if (!animate) requestAnimationFrame(() => textOvWorld.classList.remove('no-transition'));
 
-  textOvCloseBtn.addEventListener('click', () => textOverlay.classList.remove('open'));
+    if (ovZoomedCard) { ovZoomedCard.classList.remove('zoomed'); ovZoomedCard = null; }
+    ovBackBtn.classList.remove('visible');
+    textOvCanvas.style.pointerEvents = '';
+  }
+
+  ovBackBtn.addEventListener('click', () => zoomOut());
+  textOvCloseBtn.addEventListener('click', () => { zoomOut(false); textOverlay.classList.remove('open'); });
   document.getElementById('btn-text-overview').addEventListener('click', openTextOverview);
 
   // 오버레이 패닝
