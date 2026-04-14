@@ -240,6 +240,40 @@
       background: #f7f6f3;
     }
 
+    /* ── 저장소 사용량 ── */
+    #storage-usage {
+      padding: 6px 2px 2px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    #storage-usage-label {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      font-size: 10px;
+      color: #bbb;
+    }
+    #storage-usage-pct {
+      font-size: 11px;
+      font-weight: 600;
+      color: #aaa;
+    }
+    #storage-bar-bg {
+      width: 100%;
+      height: 3px;
+      background: #ece;
+      border-radius: 99px;
+      overflow: hidden;
+      background: #efefed;
+    }
+    #storage-bar-fill {
+      height: 100%;
+      border-radius: 99px;
+      background: #b0c4de;
+      transition: width 0.4s ease;
+    }
+
     /* ── 컨텍스트 메뉴 ── */
     #ctx-menu {
       position: fixed;
@@ -886,6 +920,13 @@
   </div>
   <div id="project-list"></div>
   <div id="sidebar-footer">
+    <div id="storage-usage">
+      <div id="storage-usage-label">
+        <span id="storage-usage-text">저장소 계산 중…</span>
+        <span id="storage-usage-pct"></span>
+      </div>
+      <div id="storage-bar-bg"><div id="storage-bar-fill" style="width:0%"></div></div>
+    </div>
     <button id="add-project-btn">+ 새 프로젝트</button>
     <button id="add-folder-btn">+ 새 폴더</button>
   </div>
@@ -2768,6 +2809,7 @@ function setTool(tool, keepSel = false) {
             const b = makeImgBlock(wx, wy, src, worldW, worldH, label);
             addStripCard(b);
             save();
+            refreshStorageUsage();
           } catch (err) {
             alert('이미지 업로드 실패: ' + err.message);
           }
@@ -2863,6 +2905,7 @@ function setTool(tool, keepSel = false) {
       const b = makeFileBlock(wx, wy, finalName, fileType, src);
       addFileStripCard(b);
       save();
+      refreshStorageUsage();
     } catch (err) {
       alert('파일 업로드 실패: ' + err.message);
     }
@@ -2923,6 +2966,44 @@ function setTool(tool, keepSel = false) {
     });
   });
 
+  // ── 저장소 사용량 표시 ──────────────────────────────────────
+  const STORAGE_LIMIT_GB = 1;
+  const STORAGE_LIMIT_B  = STORAGE_LIMIT_GB * 1024 * 1024 * 1024;
+
+  async function refreshStorageUsage() {
+    try {
+      // 루트 목록 (프로젝트 폴더들)
+      const { data: rootItems } = await sb.storage.from('canvas-files').list('', { limit: 200 });
+      if (!rootItems) return;
+
+      let totalBytes = 0;
+      for (const item of rootItems) {
+        if (item.metadata) {
+          // 루트에 바로 있는 파일 (드문 경우)
+          totalBytes += item.metadata.size || 0;
+        } else {
+          // 폴더 → 내부 파일 목록
+          const { data: files } = await sb.storage.from('canvas-files').list(item.name, { limit: 500 });
+          if (files) files.forEach(f => { totalBytes += f.metadata?.size || 0; });
+        }
+      }
+
+      const usedMB  = (totalBytes / (1024 * 1024)).toFixed(1);
+      const pct     = Math.min((totalBytes / STORAGE_LIMIT_B) * 100, 100);
+      const pctText = pct < 0.1 ? '<0.1' : pct.toFixed(1);
+
+      document.getElementById('storage-usage-text').textContent = `저장소  ${usedMB} MB / ${STORAGE_LIMIT_GB} GB`;
+      document.getElementById('storage-usage-pct').textContent  = `${pctText}%`;
+      document.getElementById('storage-bar-fill').style.width   = pct + '%';
+
+      // 80% 이상이면 경고색
+      const fill = document.getElementById('storage-bar-fill');
+      fill.style.background = pct >= 80 ? '#e07070' : pct >= 50 ? '#e0b970' : '#b0c4de';
+    } catch (e) {
+      document.getElementById('storage-usage-text').textContent = '저장소 조회 실패';
+    }
+  }
+
   // ── localStorage → Supabase 마이그레이션 ────────────────────
   async function migrateFromLocalStorage() {
     const raw = localStorage.getItem('memo_projects');
@@ -2969,6 +3050,7 @@ function setTool(tool, keepSel = false) {
       renderSidebar();
       await loadCanvas();
       updateCanvasTitle();
+      refreshStorageUsage(); // 비동기로 사용량 표시 (로딩 블록 안 함)
     } catch (err) {
       console.error('[memo] init error:', err);
       document.getElementById('project-list').innerHTML =
