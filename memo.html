@@ -591,6 +591,74 @@
     body.mode-select #viewport { cursor: crosshair; }
 
     /* ── 우측 툴바 ── */
+    /* ── 달력 위젯 ── */
+    #calendar-widget {
+      position: fixed;
+      right: 16px;
+      top: 16px;
+      width: 200px;
+      background: #fff;
+      border: 1px solid #e3e2de;
+      border-radius: 12px;
+      padding: 10px 10px 8px;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.08);
+      z-index: 200;
+      user-select: none;
+    }
+    #cal-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 6px;
+    }
+    #cal-title {
+      font-size: 11px;
+      font-weight: 700;
+      color: #37352f;
+      letter-spacing: 0.03em;
+    }
+    .cal-nav {
+      background: none;
+      border: none;
+      cursor: pointer;
+      color: #aaa;
+      font-size: 13px;
+      padding: 1px 4px;
+      border-radius: 4px;
+      line-height: 1;
+      transition: background 0.12s, color 0.12s;
+    }
+    .cal-nav:hover { background: #f0efec; color: #37352f; }
+    #cal-grid {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      gap: 1px;
+    }
+    .cal-dow {
+      font-size: 9px;
+      font-weight: 600;
+      color: #c0beba;
+      text-align: center;
+      padding: 2px 0;
+    }
+    .cal-day {
+      font-size: 10px;
+      text-align: center;
+      padding: 3px 0;
+      border-radius: 5px;
+      color: #37352f;
+      cursor: default;
+      line-height: 1.4;
+    }
+    .cal-day.other-month { color: #d0cfcc; }
+    .cal-day.today {
+      background: #37352f;
+      color: #fff;
+      font-weight: 700;
+    }
+    .cal-day.sunday { color: #e03e3e; }
+    .cal-day.sunday.today { color: #fff; }
+
     #toolbar {
       position: fixed;
       right: 16px;
@@ -1162,6 +1230,16 @@
   <div id="world"></div>
 </div>
 <div id="sel-box"></div>
+
+<!-- 달력 위젯 -->
+<div id="calendar-widget">
+  <div id="cal-header">
+    <button class="cal-nav" id="cal-prev">&#8249;</button>
+    <span id="cal-title"></span>
+    <button class="cal-nav" id="cal-next">&#8250;</button>
+  </div>
+  <div id="cal-grid"></div>
+</div>
 
 <!-- 우측 툴바 -->
 <div id="toolbar">
@@ -3873,6 +3951,75 @@ function setTool(tool, keepSel = false) {
   document.addEventListener('keydown', e => {
     if (e.key === 'Escape' && textOverlay.classList.contains('open'))
       closeTextOverview();
+  });
+
+  // ── 달력 위젯 ───────────────────────────────────────────
+  const calTitle = document.getElementById('cal-title');
+  const calGrid  = document.getElementById('cal-grid');
+  const DOWS = ['S','M','T','W','T','F','S'];
+  const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+  let calYear, calMonth;
+
+  function renderCalendar(year, month) {
+    calYear = year; calMonth = month;
+    calTitle.textContent = `${MONTHS[month]} ${year}`;
+    calGrid.innerHTML = '';
+
+    // 요일 헤더
+    DOWS.forEach(d => {
+      const el = document.createElement('div');
+      el.className = 'cal-dow';
+      el.textContent = d;
+      calGrid.appendChild(el);
+    });
+
+    const today = new Date();
+    const firstDay = new Date(year, month, 1).getDay();
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const daysInPrev  = new Date(year, month, 0).getDate();
+
+    // 이전 달 빈칸
+    for (let i = 0; i < firstDay; i++) {
+      const el = document.createElement('div');
+      el.className = 'cal-day other-month';
+      el.textContent = daysInPrev - firstDay + 1 + i;
+      calGrid.appendChild(el);
+    }
+
+    // 이번 달
+    for (let d = 1; d <= daysInMonth; d++) {
+      const el = document.createElement('div');
+      const isToday = d === today.getDate() && month === today.getMonth() && year === today.getFullYear();
+      const dow = new Date(year, month, d).getDay();
+      el.className = 'cal-day' + (isToday ? ' today' : '') + (dow === 0 ? ' sunday' : '');
+      el.textContent = d;
+      calGrid.appendChild(el);
+    }
+
+    // 다음 달 빈칸
+    const total = firstDay + daysInMonth;
+    const remain = total % 7 === 0 ? 0 : 7 - (total % 7);
+    for (let i = 1; i <= remain; i++) {
+      const el = document.createElement('div');
+      el.className = 'cal-day other-month';
+      el.textContent = i;
+      calGrid.appendChild(el);
+    }
+  }
+
+  const now = new Date();
+  renderCalendar(now.getFullYear(), now.getMonth());
+
+  document.getElementById('cal-prev').addEventListener('click', () => {
+    let m = calMonth - 1, y = calYear;
+    if (m < 0) { m = 11; y--; }
+    renderCalendar(y, m);
+  });
+  document.getElementById('cal-next').addEventListener('click', () => {
+    let m = calMonth + 1, y = calYear;
+    if (m > 11) { m = 0; y++; }
+    renderCalendar(y, m);
   });
 
 </script>
