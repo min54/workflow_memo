@@ -2222,7 +2222,8 @@ function setTool(tool, keepSel = false) {
 
     if (e.target.isContentEditable) return;
 
-    // 빈 캔버스 클릭 시 포커스 강제 해제 → 빈 블록 focusout 트리거
+    // 빈 캔버스 클릭 시 텍스트 선택 해제 + 포커스 해제
+    window.getSelection().removeAllRanges();
     if (document.activeElement && document.activeElement.isContentEditable) {
       document.activeElement.blur();
     }
