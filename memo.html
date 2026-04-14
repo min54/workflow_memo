@@ -286,6 +286,39 @@
       font-weight: 600;
       color: #37352f;
       margin: 0;
+      flex-shrink: 0;
+    }
+    #ov-search-wrap {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      background: #f7f6f3;
+      border: 1px solid #e3e2de;
+      border-radius: 8px;
+      padding: 5px 10px;
+      flex: 1;
+      max-width: 260px;
+      margin: 0 14px;
+    }
+    #ov-search-wrap svg { flex-shrink: 0; color: #aaa; }
+    #ov-search-input {
+      border: none;
+      background: transparent;
+      outline: none;
+      font-size: 13px;
+      color: #37352f;
+      font-family: inherit;
+      width: 100%;
+    }
+    #ov-search-input::placeholder { color: #bbb; }
+    #ov-search-count { font-size: 11px; color: #aaa; flex-shrink: 0; }
+
+    /* 카드 dimmed / 하이라이트 */
+    .ov-card.dimmed { opacity: 0.2; }
+    .ov-card .ov-highlight {
+      background: #FFF3A3;
+      border-radius: 2px;
+      padding: 0 1px;
     }
     #text-overview-close {
       background: none;
@@ -1384,6 +1417,11 @@
 <div id="text-overview-overlay">
   <div id="text-overview-header">
     <h2>Brain Map</h2>
+    <div id="ov-search-wrap">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      <input id="ov-search-input" type="text" placeholder="Brain Map 내 검색..." />
+      <span id="ov-search-count"></span>
+    </div>
     <button id="text-overview-close">✕</button>
   </div>
   <div id="text-overview-canvas">
@@ -3887,6 +3925,81 @@ function setTool(tool, keepSel = false) {
   }
 
   textOvCloseBtn.addEventListener('click', () => closeTextOverview());
+
+  // ── Brain Map 내 검색 ──────────────────────────────────
+  const ovSearchInput = document.getElementById('ov-search-input');
+  const ovSearchCount = document.getElementById('ov-search-count');
+
+  function highlightText(text, query) {
+    if (!query) return document.createTextNode(text);
+    const escaped = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const parts = text.split(new RegExp(`(${escaped})`, 'gi'));
+    const frag = document.createDocumentFragment();
+    parts.forEach(p => {
+      if (p.toLowerCase() === query.toLowerCase()) {
+        const mark = document.createElement('span');
+        mark.className = 'ov-highlight';
+        mark.textContent = p;
+        frag.appendChild(mark);
+      } else {
+        frag.appendChild(document.createTextNode(p));
+      }
+    });
+    return frag;
+  }
+
+  function doOvSearch(query) {
+    const cards = textOvWorld.querySelectorAll('.ov-card');
+    const q = query.trim();
+    let matchCount = 0;
+
+    cards.forEach(card => {
+      const titleEl   = card.querySelector('.ov-card-title');
+      const contentEl = card.querySelector('.ov-card-content');
+      const titleText   = titleEl?._raw   || titleEl?.textContent   || '';
+      const contentText = contentEl?._raw || contentEl?.textContent || '';
+
+      // 원본 텍스트 보존
+      if (!titleEl._raw)   titleEl._raw   = titleEl.textContent;
+      if (!contentEl._raw) contentEl._raw = contentEl.textContent;
+
+      if (!q) {
+        // 검색어 없으면 원상 복구
+        card.classList.remove('dimmed');
+        titleEl.textContent   = titleEl._raw;
+        contentEl.textContent = contentEl._raw;
+        return;
+      }
+
+      const matched = titleText.toLowerCase().includes(q.toLowerCase()) ||
+                      contentText.toLowerCase().includes(q.toLowerCase());
+
+      card.classList.toggle('dimmed', !matched);
+
+      if (matched) {
+        matchCount++;
+        titleEl.innerHTML   = '';
+        contentEl.innerHTML = '';
+        titleEl.appendChild(highlightText(titleEl._raw, q));
+        contentEl.appendChild(highlightText(contentEl._raw, q));
+      } else {
+        titleEl.textContent   = titleEl._raw;
+        contentEl.textContent = contentEl._raw;
+      }
+    });
+
+    ovSearchCount.textContent = q ? `${matchCount}개` : '';
+  }
+
+  ovSearchInput.addEventListener('input', () => doOvSearch(ovSearchInput.value));
+
+  // Brain Map 열 때 검색창 초기화
+  const _origOpenOv = openTextOverview;
+  openTextOverview = async function() {
+    ovSearchInput.value = '';
+    ovSearchCount.textContent = '';
+    await _origOpenOv();
+  };
 
   // 카드 바깥 클릭 시 접기
   textOvCanvas.addEventListener('click', e => {
