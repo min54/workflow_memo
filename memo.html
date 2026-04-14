@@ -911,6 +911,12 @@
   <button class="tool-btn" id="hl-yellow" data-tip="형광펜" data-highlight="#FFE566">
     <span class="highlight-label" style="background:#FFE566;">H</span>
   </button>
+  <button class="tool-btn" id="hl-erase" data-tip="형광펜 지우기">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M20 20H7L3 16l10-10 7 7-2.5 2.5"/>
+      <path d="M6.5 17.5l4-4"/>
+    </svg>
+  </button>
   <div style="height:1px;background:#e3e2de;margin:4px 2px;"></div>
   <button class="tool-btn" id="btn-copy-selected" data-tip="선택 복사 (Ctrl+C)" style="opacity:0.3;pointer-events:none;">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -1990,28 +1996,34 @@
 
   // ── 색상 버튼 ─────────────────────────────────────────────
   // ── 형광펜 ──────────────────────────────────────────────────
-  document.querySelectorAll('[data-highlight]').forEach(btn => {
-    btn.addEventListener('mousedown', e => e.preventDefault()); // 선택 유지
-    btn.addEventListener('click', () => {
-      const color = btn.dataset.highlight;
-      const sel = window.getSelection();
-      if (!sel || sel.rangeCount === 0 || sel.isCollapsed) return;
-      const range = sel.getRangeAt(0);
-      const node = range.commonAncestorContainer;
-      const editable = node.nodeType === 1
-        ? node.closest('[contenteditable]')
-        : node.parentElement?.closest('[contenteditable]');
-      if (!editable) return;
+  function getEditableFromSel() {
+    const sel = window.getSelection();
+    if (!sel || sel.rangeCount === 0 || sel.isCollapsed) return null;
+    const node = sel.getRangeAt(0).commonAncestorContainer;
+    return node.nodeType === 1
+      ? node.closest('[contenteditable]')
+      : node.parentElement?.closest('[contenteditable]');
+  }
 
-      // 이미 같은 색 형광펜이면 제거, 아니면 적용
+  document.querySelectorAll('[data-highlight]').forEach(btn => {
+    btn.addEventListener('mousedown', e => e.preventDefault());
+    btn.addEventListener('click', () => {
+      const editable = getEditableFromSel();
+      if (!editable) return;
+      const color = btn.dataset.highlight;
       const current = document.queryCommandValue('hiliteColor');
-      if (current === color) {
-        document.execCommand('hiliteColor', false, 'transparent');
-      } else {
-        document.execCommand('hiliteColor', false, color);
-      }
+      document.execCommand('hiliteColor', false, current === color ? 'transparent' : color);
       save();
     });
+  });
+
+  // ── 형광펜 지우개 ─────────────────────────────────────────
+  document.getElementById('hl-erase').addEventListener('mousedown', e => e.preventDefault());
+  document.getElementById('hl-erase').addEventListener('click', () => {
+    const editable = getEditableFromSel();
+    if (!editable) return;
+    document.execCommand('hiliteColor', false, 'transparent');
+    save();
   });
 
   document.querySelectorAll('.color-tool-btn').forEach(btn => {
