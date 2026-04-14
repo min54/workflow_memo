@@ -208,6 +208,8 @@
     .folder-item.dragging { opacity: 0.4; }
     .folder-item.drop-above { border-top: 2px solid #4a90d9; }
     .folder-item.drop-below { border-bottom: 2px solid #4a90d9; }
+    .proj-item.drop-above { border-top: 2px solid #4a90d9; }
+    .proj-item.drop-below { border-bottom: 2px solid #4a90d9; }
 
     /* ── 사이드바 하단 버튼 영역 ── */
     #sidebar-footer {
@@ -1188,7 +1190,7 @@
 
   async function loadProjects() {
     const { data } = await sb.from('projects').select('*').order('created_at');
-    return data || [];
+    return (data || []).sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
   }
 
   async function loadFolders() {
@@ -1301,7 +1303,57 @@
     });
     item.addEventListener('dragend', () => {
       item.classList.remove('dragging');
+      document.querySelectorAll('.proj-item').forEach(el =>
+        el.classList.remove('drop-above', 'drop-below')
+      );
       dragSrc = null;
+    });
+
+    // ── 프로젝트 순서 변경 (reorder) ──
+    item.addEventListener('dragover', e => {
+      if (dragSrc?.type !== 'proj' || dragSrc.id === p.id) return;
+      e.preventDefault();
+      e.stopPropagation();
+      const rect = item.getBoundingClientRect();
+      if (e.clientY < rect.top + rect.height / 2) {
+        item.classList.add('drop-above');
+        item.classList.remove('drop-below');
+      } else {
+        item.classList.add('drop-below');
+        item.classList.remove('drop-above');
+      }
+    });
+    item.addEventListener('dragleave', e => {
+      if (!item.contains(e.relatedTarget)) {
+        item.classList.remove('drop-above', 'drop-below');
+      }
+    });
+    item.addEventListener('drop', async e => {
+      if (dragSrc?.type !== 'proj' || dragSrc.id === p.id) return;
+      e.preventDefault();
+      e.stopPropagation();
+      const isAbove = item.classList.contains('drop-above');
+      item.classList.remove('drop-above', 'drop-below');
+
+      const srcIdx = projects.findIndex(x => x.id === dragSrc.id);
+      const dstIdx = projects.findIndex(x => x.id === p.id);
+      if (srcIdx === -1 || dstIdx === -1) return;
+
+      // 같은 그룹(폴더/orphan) 내에서만 reorder
+      const srcProj = projects[srcIdx];
+      if (srcProj.folder_id !== p.folder_id) return;
+
+      const [moved] = projects.splice(srcIdx, 1);
+      const newDst  = projects.findIndex(x => x.id === p.id);
+      projects.splice(isAbove ? newDst : newDst + 1, 0, moved);
+
+      // sort_order 일괄 저장
+      await Promise.all(projects.map((proj, i) => {
+        proj.sort_order = i;
+        return sb.from('projects').update({ sort_order: i }).eq('id', proj.id);
+      }));
+
+      renderSidebar();
     });
 
     // ── 우클릭 컨텍스트 메뉴 ──
