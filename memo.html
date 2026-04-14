@@ -418,6 +418,32 @@
     }
     .ov-card-content:empty { display: none; }
 
+    .ov-card.expanded {
+      box-shadow: 0 8px 32px rgba(0,0,0,0.13);
+      border-color: #c0bebb;
+      z-index: 10;
+    }
+    .ov-card.expanded .ov-card-content {
+      max-height: none;
+      -webkit-mask-image: none;
+      mask-image: none;
+    }
+    .ov-card-goto {
+      display: none;
+      margin-top: 12px;
+      padding: 6px 14px;
+      background: #37352f;
+      color: #fff;
+      border: none;
+      border-radius: 7px;
+      font-size: 12px;
+      font-family: inherit;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    .ov-card-goto:hover { background: #1a1915; }
+    .ov-card.expanded .ov-card-goto { display: block; }
+
 
     /* ── 저장소 사용량 ── */
     #storage-usage {
@@ -3716,15 +3742,28 @@ function setTool(tool, keepSel = false) {
           card.appendChild(c);
         }
 
-        // 클릭 → 해당 프로젝트·블록으로 이동
+        // 이동 버튼
+        const gotoBtn = document.createElement('button');
+        gotoBtn.className = 'ov-card-goto';
+        gotoBtn.textContent = '이 블록으로 이동 →';
         const projId = proj.id, bwx = b.wx, bwy = b.wy;
-        card.addEventListener('click', async () => {
+        gotoBtn.addEventListener('click', async e => {
+          e.stopPropagation();
           textOverlay.classList.remove('open');
           if (projId !== currentProjId) await switchProject(projId);
           const vw = viewport.clientWidth, vh = viewport.clientHeight;
           tx = vw / 2 - (bwx + 150) * scale;
           ty = vh / 2 - (bwy + 60)  * scale;
           refresh();
+        });
+        card.appendChild(gotoBtn);
+
+        // 클릭 → 제자리에서 펼치기 / 접기
+        card.addEventListener('click', () => {
+          const isExpanded = card.classList.contains('expanded');
+          // 다른 열린 카드 접기
+          textOvWorld.querySelectorAll('.ov-card.expanded').forEach(c => c.classList.remove('expanded'));
+          if (!isExpanded) card.classList.add('expanded');
         });
 
         textOvWorld.appendChild(card);
@@ -3738,6 +3777,12 @@ function setTool(tool, keepSel = false) {
   }
 
   textOvCloseBtn.addEventListener('click', () => textOverlay.classList.remove('open'));
+
+  // 카드 바깥 클릭 시 접기
+  textOvCanvas.addEventListener('click', e => {
+    if (!e.target.closest('.ov-card'))
+      textOvWorld.querySelectorAll('.ov-card.expanded').forEach(c => c.classList.remove('expanded'));
+  });
   document.getElementById('btn-text-overview').addEventListener('click', openTextOverview);
 
   // 오버레이 패닝
