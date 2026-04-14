@@ -239,6 +239,133 @@
       background: #f7f6f3;
     }
 
+    /* ── 텍스트 전체 보기 버튼 ── */
+    #btn-text-overview {
+      padding: 7px 16px;
+      background: none;
+      border: 1.5px solid #d0cfcc;
+      border-radius: 12px;
+      color: #aaa;
+      font-size: 12px;
+      font-family: inherit;
+      cursor: pointer;
+      text-align: center;
+      transition: border-color 0.2s, color 0.2s, background 0.2s;
+      width: 100%;
+    }
+    #btn-text-overview:hover {
+      border-color: #37352f;
+      color: #37352f;
+      background: #f7f6f3;
+    }
+
+    /* ── 텍스트 전체 보기 오버레이 ── */
+    #text-overview-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: #f5f4f0;
+      z-index: 5000;
+      flex-direction: column;
+    }
+    #text-overview-overlay.open { display: flex; animation: appFadeIn 0.3s ease both; }
+
+    #text-overview-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 14px 22px;
+      background: #fff;
+      border-bottom: 1px solid #e3e2de;
+      flex-shrink: 0;
+      z-index: 1;
+    }
+    #text-overview-header h2 {
+      font-size: 15px;
+      font-weight: 600;
+      color: #37352f;
+      margin: 0;
+    }
+    #text-overview-close {
+      background: none;
+      border: none;
+      font-size: 20px;
+      color: #aaa;
+      cursor: pointer;
+      line-height: 1;
+      padding: 2px 6px;
+      border-radius: 6px;
+      transition: background 0.15s, color 0.15s;
+    }
+    #text-overview-close:hover { background: #f0efec; color: #37352f; }
+
+    #text-overview-canvas {
+      flex: 1;
+      position: relative;
+      overflow: hidden;
+      cursor: grab;
+    }
+    #text-overview-canvas.panning { cursor: grabbing; }
+
+    #text-overview-world {
+      position: absolute;
+      top: 0; left: 0;
+      width: 0; height: 0;
+      transform-origin: 0 0;
+    }
+
+    /* 프로젝트 컬럼 헤더 */
+    .ov-proj-header {
+      position: absolute;
+      font-size: 11px;
+      font-weight: 600;
+      color: #b0aea9;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      white-space: nowrap;
+      user-select: none;
+    }
+
+    /* 텍스트 카드 */
+    .ov-card {
+      position: absolute;
+      background: #fff;
+      border: 1px solid #e8e7e3;
+      border-radius: 12px;
+      padding: 18px 20px;
+      width: 280px;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+      cursor: pointer;
+      transition: box-shadow 0.15s, transform 0.15s;
+      box-sizing: border-box;
+    }
+    .ov-card:hover {
+      box-shadow: 0 6px 24px rgba(0,0,0,0.11);
+      transform: translateY(-2px);
+    }
+    .ov-card-title {
+      font-size: 14px;
+      font-weight: 700;
+      color: #37352f;
+      margin-bottom: 6px;
+      line-height: 1.4;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+    .ov-card-title:empty { display: none; }
+    .ov-card-content {
+      font-size: 12px;
+      color: #787672;
+      line-height: 1.7;
+      white-space: pre-wrap;
+      word-break: break-word;
+      max-height: 120px;
+      overflow: hidden;
+      -webkit-mask-image: linear-gradient(to bottom, black 70%, transparent 100%);
+      mask-image: linear-gradient(to bottom, black 70%, transparent 100%);
+    }
+    .ov-card-content:empty { display: none; }
+
     /* ── 저장소 사용량 ── */
     #storage-usage {
       padding: 6px 2px 2px;
@@ -927,6 +1054,7 @@
   </div>
   <div id="project-list"></div>
   <div id="sidebar-footer">
+    <button id="btn-text-overview">≡ 텍스트 전체 보기</button>
     <div id="storage-usage">
       <div id="storage-usage-label">
         <span id="storage-usage-text">저장소 계산 중…</span>
@@ -3450,7 +3578,162 @@ function setTool(tool, keepSel = false) {
     btn.style.opacity = '';
     btn.style.pointerEvents = '';
   });
+
+  // ── 텍스트 전체 보기 ─────────────────────────────────────
+  const textOverlay      = document.getElementById('text-overview-overlay');
+  const textOvCanvas     = document.getElementById('text-overview-canvas');
+  const textOvWorld      = document.getElementById('text-overview-world');
+  const textOvCloseBtn   = document.getElementById('text-overview-close');
+
+  let ovScale = 0.75, ovTx = 60, ovTy = 60;
+  let ovDragging = false, ovDragSx, ovDragSy, ovDragTx, ovDragTy;
+
+  function applyOvTransform() {
+    textOvWorld.style.transform = `scale(${ovScale}) translate(${ovTx / ovScale}px, ${ovTy / ovScale}px)`;
+  }
+
+  async function openTextOverview() {
+    textOvWorld.innerHTML = '';
+    textOverlay.classList.add('open');
+    ovScale = 0.75; ovTx = 60; ovTy = 60;
+    applyOvTransform();
+
+    // 현재 캔버스 먼저 저장
+    await saveCanvas();
+    const allProjects = await loadProjects();
+    const { data: allCanvases } = await sb.from('canvases').select('project_id, data');
+    const canvasMap = {};
+    (allCanvases || []).forEach(c => { canvasMap[c.project_id] = c.data; });
+
+    const COL_W    = 320;  // 컬럼 너비
+    const COL_GAP  = 60;   // 컬럼 간 간격
+    const CARD_W   = 280;
+    const CARD_GAP = 20;
+    const HEADER_H = 36;
+
+    let colX = 0;
+
+    for (const proj of allProjects) {
+      const data = canvasMap[proj.id];
+      const blocks = data?.blocks || [];
+      if (blocks.length === 0) continue;
+
+      // 프로젝트 헤더
+      const header = document.createElement('div');
+      header.className = 'ov-proj-header';
+      header.textContent = proj.name;
+      header.style.left = colX + 'px';
+      header.style.top  = '0px';
+      textOvWorld.appendChild(header);
+
+      let cardY = HEADER_H;
+
+      for (const b of blocks) {
+        const title   = stripHtml(b.title   || '').trim();
+        const content = stripHtml(b.content || '').trim();
+        if (!title && !content) continue;
+
+        const card = document.createElement('div');
+        card.className = 'ov-card';
+        card.style.left = colX + 'px';
+        card.style.top  = cardY + 'px';
+        card.style.width = CARD_W + 'px';
+
+        if (title) {
+          const t = document.createElement('div');
+          t.className = 'ov-card-title';
+          t.textContent = title;
+          card.appendChild(t);
+        }
+        if (content) {
+          const c = document.createElement('div');
+          c.className = 'ov-card-content';
+          c.textContent = content;
+          card.appendChild(c);
+        }
+
+        // 클릭 → 해당 프로젝트로 이동
+        card.addEventListener('click', async () => {
+          textOverlay.classList.remove('open');
+          if (proj.id !== currentProjId) {
+            currentProjId = proj.id;
+            document.querySelectorAll('.proj-item').forEach(el =>
+              el.classList.toggle('active', el.dataset.id === proj.id));
+            await loadCanvas();
+            updateCanvasTitle();
+          }
+          // 해당 블록 위치로 이동
+          const vw = viewport.clientWidth, vh = viewport.clientHeight;
+          tx = vw / 2 - (b.wx + 150) * scale;
+          ty = vh / 2 - (b.wy + 60)  * scale;
+          refresh();
+        });
+
+        textOvWorld.appendChild(card);
+        // offsetHeight 측정 (렌더링 후)
+        const h = card.offsetHeight || (title && content ? 140 : 80);
+        cardY += h + CARD_GAP;
+      }
+
+      colX += COL_W + COL_GAP;
+    }
+  }
+
+  textOvCloseBtn.addEventListener('click', () => textOverlay.classList.remove('open'));
+  document.getElementById('btn-text-overview').addEventListener('click', openTextOverview);
+
+  // 오버레이 패닝
+  textOvCanvas.addEventListener('mousedown', e => {
+    if (e.button !== 0) return;
+    ovDragging = true;
+    ovDragSx = e.clientX; ovDragSy = e.clientY;
+    ovDragTx = ovTx;      ovDragTy = ovTy;
+    textOvCanvas.classList.add('panning');
+  });
+  window.addEventListener('mousemove', e => {
+    if (!ovDragging) return;
+    ovTx = ovDragTx + (e.clientX - ovDragSx);
+    ovTy = ovDragTy + (e.clientY - ovDragSy);
+    applyOvTransform();
+  });
+  window.addEventListener('mouseup', () => {
+    if (!ovDragging) return;
+    ovDragging = false;
+    textOvCanvas.classList.remove('panning');
+  });
+
+  // 오버레이 줌
+  textOvCanvas.addEventListener('wheel', e => {
+    e.preventDefault();
+    const rect  = textOvCanvas.getBoundingClientRect();
+    const mx    = e.clientX - rect.left;
+    const my    = e.clientY - rect.top;
+    const delta = e.deltaY < 0 ? 1.1 : 0.91;
+    const newScale = Math.min(2, Math.max(0.2, ovScale * delta));
+    ovTx = mx - (mx - ovTx) * (newScale / ovScale);
+    ovTy = my - (my - ovTy) * (newScale / ovScale);
+    ovScale = newScale;
+    applyOvTransform();
+  }, { passive: false });
+
+  // ESC 닫기
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape' && textOverlay.classList.contains('open'))
+      textOverlay.classList.remove('open');
+  });
+
 </script>
+
+<!-- 텍스트 전체 보기 오버레이 -->
+<div id="text-overview-overlay">
+  <div id="text-overview-header">
+    <h2>텍스트 전체 보기</h2>
+    <button id="text-overview-close">✕</button>
+  </div>
+  <div id="text-overview-canvas">
+    <div id="text-overview-world"></div>
+  </div>
+</div>
 
 </body>
 </html>
