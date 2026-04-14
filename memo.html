@@ -1221,6 +1221,53 @@
     .lbt-line.lg  { font-size: clamp(28px, 4vw, 56px); font-weight: 400; font-style: italic; color: rgba(55,53,47,0.30); }
     .lbt-line.sm  { font-size: clamp(14px, 2vw, 22px); font-weight: 300; letter-spacing: 0.12em; color: rgba(55,53,47,0.22); }
     .lbt-line.xs  { font-size: clamp(11px, 1.4vw, 16px); font-weight: 300; letter-spacing: 0.22em; color: rgba(55,53,47,0.16); }
+    /* ── 미니 유튜브 플레이어 ── */
+    #yt-player-wrap {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      z-index: 9000;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 8px;
+    }
+    #yt-toggle-btn {
+      width: 44px; height: 44px;
+      border-radius: 50%;
+      background: #37352f;
+      border: none;
+      cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.18);
+      transition: transform 0.2s, background 0.2s;
+      flex-shrink: 0;
+    }
+    #yt-toggle-btn:hover { transform: scale(1.1); background: #1a1917; }
+    #yt-toggle-btn svg { width: 20px; height: 20px; fill: #fff; }
+    #yt-panel {
+      background: #1a1917;
+      border-radius: 14px;
+      overflow: hidden;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.28);
+      display: none;
+      flex-direction: column;
+      width: 300px;
+    }
+    #yt-panel.open { display: flex; }
+    #yt-panel-header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 10px 14px;
+      color: rgba(255,255,255,0.7);
+      font-size: 12px;
+      letter-spacing: 0.04em;
+    }
+    #yt-panel-title { font-weight: 500; color: #fff; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 200px; }
+    #yt-close-btn { background: none; border: none; color: rgba(255,255,255,0.5); cursor: pointer; font-size: 16px; line-height: 1; padding: 2px 4px; }
+    #yt-close-btn:hover { color: #fff; }
+    #yt-iframe-wrap { width: 300px; height: 168px; }
+    #yt-iframe-wrap iframe { width: 100%; height: 100%; border: none; display: block; }
+
     @keyframes appFadeIn {
       from { opacity: 0; transform: translateY(6px); }
       to   { opacity: 1; transform: translateY(0); }
@@ -4463,6 +4510,51 @@ function setTool(tool, keepSel = false) {
     renderCalendar(y, m);
   });
 
+</script>
+
+<!-- 미니 유튜브 플레이어 -->
+<div id="yt-player-wrap">
+  <div id="yt-panel">
+    <div id="yt-panel-header">
+      <span id="yt-panel-title">lofi hip hop radio</span>
+      <button id="yt-close-btn" title="닫기">✕</button>
+    </div>
+    <div id="yt-iframe-wrap">
+      <iframe
+        id="yt-iframe"
+        src="https://www.youtube.com/embed/blsjKG2kZok?autoplay=1&controls=1&rel=0"
+        allow="autoplay; encrypted-media"
+        allowfullscreen>
+      </iframe>
+    </div>
+  </div>
+  <button id="yt-toggle-btn" title="음악 플레이어">
+    <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+      <path d="M12 3v10.55A4 4 0 1 0 14 17V7h4V3h-6z"/>
+    </svg>
+  </button>
+</div>
+
+<script>
+  (function(){
+    const wrap   = document.getElementById('yt-player-wrap');
+    const panel  = document.getElementById('yt-panel');
+    const btn    = document.getElementById('yt-toggle-btn');
+    const closeB = document.getElementById('yt-close-btn');
+    const iframe = document.getElementById('yt-iframe');
+    const origSrc = iframe.src;
+
+    btn.addEventListener('click', () => {
+      const isOpen = panel.classList.toggle('open');
+      // 닫을 때 재생 정지
+      if (!isOpen) iframe.src = '';
+      else iframe.src = origSrc;
+    });
+    closeB.addEventListener('click', () => {
+      panel.classList.remove('open');
+      iframe.src = '';
+    });
+  })();
 </script>
 
 </body>
