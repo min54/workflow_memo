@@ -1232,6 +1232,46 @@
       align-items: flex-end;
       gap: 8px;
     }
+    #yt-bottom-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    /* 이퀄라이저 */
+    #yt-eq {
+      display: flex;
+      align-items: flex-end;
+      gap: 3px;
+      height: 28px;
+      padding: 0 4px;
+    }
+    .yt-bar {
+      width: 3px;
+      border-radius: 2px;
+      background: #37352f;
+      opacity: 0.35;
+      height: 4px;
+      animation: ytEq var(--d) ease-in-out infinite alternate;
+      animation-play-state: paused;
+    }
+    #yt-player-wrap.playing .yt-bar { animation-play-state: running; opacity: 0.55; }
+    @keyframes ytEq {
+      0%   { height: 3px; }
+      100% { height: var(--h); }
+    }
+    .yt-bar:nth-child(1)  { --d:.55s; --h:18px; animation-delay:0s; }
+    .yt-bar:nth-child(2)  { --d:.72s; --h:26px; animation-delay:.07s; }
+    .yt-bar:nth-child(3)  { --d:.48s; --h:14px; animation-delay:.14s; }
+    .yt-bar:nth-child(4)  { --d:.65s; --h:22px; animation-delay:.21s; }
+    .yt-bar:nth-child(5)  { --d:.80s; --h:28px; animation-delay:.05s; }
+    .yt-bar:nth-child(6)  { --d:.58s; --h:16px; animation-delay:.18s; }
+    .yt-bar:nth-child(7)  { --d:.70s; --h:24px; animation-delay:.10s; }
+    .yt-bar:nth-child(8)  { --d:.50s; --h:12px; animation-delay:.25s; }
+    .yt-bar:nth-child(9)  { --d:.63s; --h:20px; animation-delay:.03s; }
+    .yt-bar:nth-child(10) { --d:.75s; --h:26px; animation-delay:.16s; }
+    .yt-bar:nth-child(11) { --d:.45s; --h:10px; animation-delay:.08s; }
+    .yt-bar:nth-child(12) { --d:.68s; --h:22px; animation-delay:.22s; }
+
     #yt-toggle-btn {
       width: 44px; height: 44px;
       border-radius: 50%;
@@ -4540,11 +4580,27 @@ function setTool(tool, keepSel = false) {
       </iframe>
     </div>
   </div>
-  <button id="yt-toggle-btn" title="음악 플레이어">
-    <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-      <path d="M12 3v10.55A4 4 0 1 0 14 17V7h4V3h-6z"/>
-    </svg>
-  </button>
+  <div id="yt-bottom-row">
+    <div id="yt-eq">
+      <div class="yt-bar"></div>
+      <div class="yt-bar"></div>
+      <div class="yt-bar"></div>
+      <div class="yt-bar"></div>
+      <div class="yt-bar"></div>
+      <div class="yt-bar"></div>
+      <div class="yt-bar"></div>
+      <div class="yt-bar"></div>
+      <div class="yt-bar"></div>
+      <div class="yt-bar"></div>
+      <div class="yt-bar"></div>
+      <div class="yt-bar"></div>
+    </div>
+    <button id="yt-toggle-btn" title="음악 플레이어">
+      <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+        <path d="M12 3v10.55A4 4 0 1 0 14 17V7h4V3h-6z"/>
+      </svg>
+    </button>
+  </div>
 </div>
 
 <script>
@@ -4588,10 +4644,15 @@ function setTool(tool, keepSel = false) {
       currentId = id;
       loaded = false; // 새 영상은 강제 재로드
       ensureLoaded(id);
+      setPlaying(true);
     }
+
+    const wrapEl = document.getElementById('yt-player-wrap');
+    function setPlaying(on) { wrapEl.classList.toggle('playing', on); }
 
     // 페이지 로드 시 바로 1회 로드 (세션 1개만 생성)
     ensureLoaded();
+    setPlaying(true);
 
     goBtn.addEventListener('click', () => {
       const id = extractVideoId(urlInput.value);
@@ -4624,6 +4685,7 @@ function setTool(tool, keepSel = false) {
       panel.classList.remove('open');
       iframe.src = '';  // ✕ 버튼만 완전 정지
       loaded = false;
+      setPlaying(false);
     });
   })();
 </script>
