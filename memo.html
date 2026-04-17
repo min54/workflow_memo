@@ -1002,6 +1002,28 @@
     }
 
     #bottom-bar.drag-over { background: #f7f6f3; border-color: #37352f; }
+
+    #lifemap-btn {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      width: 100%;
+      padding: 7px 10px;
+      background: none;
+      border: 1px solid #e3e2de;
+      border-radius: 8px;
+      font-size: 13px;
+      color: #37352f;
+      text-decoration: none;
+      cursor: pointer;
+      filter: grayscale(1);
+      opacity: 0.6;
+      transition: opacity 0.15s, background 0.15s;
+    }
+    #lifemap-btn:hover {
+      opacity: 1;
+      background: #f1f0ed;
+    }
     #canvas-drop-indicator {
       display: none;
       position: absolute;
@@ -1409,6 +1431,7 @@
     </div>
     <button id="add-project-btn">+ New Project</button>
     <button id="add-folder-btn">+ New Folder</button>
+    <a id="lifemap-btn" href="https://lifemap-memo.netlify.app" target="_blank">🗺 LifeMap</a>
   </div>
 </div>
 
@@ -1518,8 +1541,6 @@
     </svg>
   </button>
 </div>
-
-
 
 <div id="bottom-bar">
   <div id="upload-area" title="이미지 업로드 (또는 드래그)">
@@ -3993,6 +4014,11 @@ function setTool(tool, keepSel = false) {
         document.getElementById('btn-text-overview').style.display = 'none';
       }
 
+      // LifeMap 버튼 — admin(min) 계정만 표시
+      if (currentOwner !== 'min') {
+        document.getElementById('lifemap-btn').style.display = 'none';
+      }
+
       // 도움말 내용 — 계정에 따라 다르게
       document.getElementById('help-content').innerHTML = isGuest ? `
         <div class="help-section">
@@ -4647,14 +4673,14 @@ function setTool(tool, keepSel = false) {
       const contentText = contentEl?._raw || contentEl?.textContent || '';
 
       // 원본 텍스트 보존
-      if (!titleEl._raw)   titleEl._raw   = titleEl.textContent;
-      if (!contentEl._raw) contentEl._raw = contentEl.textContent;
+      if (titleEl   && !titleEl._raw)   titleEl._raw   = titleEl.textContent;
+      if (contentEl && !contentEl._raw) contentEl._raw = contentEl.textContent;
 
       if (!q) {
         // 검색어 없으면 원상 복구
         card.classList.remove('dimmed');
-        titleEl.textContent   = titleEl._raw;
-        contentEl.textContent = contentEl._raw;
+        if (titleEl)   titleEl.textContent   = titleEl._raw;
+        if (contentEl) contentEl.textContent = contentEl._raw;
         return;
       }
 
@@ -4665,13 +4691,11 @@ function setTool(tool, keepSel = false) {
 
       if (matched) {
         matchCount++;
-        titleEl.innerHTML   = '';
-        contentEl.innerHTML = '';
-        titleEl.appendChild(highlightText(titleEl._raw, q));
-        contentEl.appendChild(highlightText(contentEl._raw, q));
+        if (titleEl)   { titleEl.innerHTML   = ''; titleEl.appendChild(highlightText(titleEl._raw, q)); }
+        if (contentEl) { contentEl.innerHTML = ''; contentEl.appendChild(highlightText(contentEl._raw, q)); }
       } else {
-        titleEl.textContent   = titleEl._raw;
-        contentEl.textContent = contentEl._raw;
+        if (titleEl)   titleEl.textContent   = titleEl._raw;
+        if (contentEl) contentEl.textContent = contentEl._raw;
       }
     });
 
