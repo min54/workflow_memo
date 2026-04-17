@@ -893,6 +893,40 @@
       pointer-events: none;
     }
 
+    /* ── 텍스트 블록 내 링크 ── */
+    .block-title a,
+    .block-content a {
+      color: #2563eb;
+      text-decoration: underline;
+      text-underline-offset: 2px;
+      cursor: text;
+    }
+    .block-title a:hover,
+    .block-content a:hover {
+      color: #1d4ed8;
+    }
+
+    /* ── 링크 호버 시 뜨는 "열기" 버튼 ── */
+    .link-open-btn {
+      position: fixed;
+      z-index: 10000;
+      display: none;
+      background: #2563eb;
+      color: #fff;
+      border: none;
+      border-radius: 4px;
+      padding: 3px 7px;
+      font-size: 11px;
+      line-height: 1;
+      cursor: pointer;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.18);
+      font-family: inherit;
+      user-select: none;
+    }
+    .link-open-btn:hover {
+      background: #1d4ed8;
+    }
+
     /* ── 캔버스 이미지 블록 ── */
     .img-block {
       position: absolute;
@@ -3534,13 +3568,75 @@ function setTool(tool, keepSel = false) {
     });
 
     // 붙여넣기 시 인라인 스타일 제거 → 순수 텍스트로만 삽입
+    // 단, URL이 포함되어 있으면 해당 부분만 <a> 태그로 감싸서 삽입
     function plainPaste(e) {
       e.preventDefault();
       const text = (e.clipboardData || window.clipboardData).getData('text/plain');
-      document.execCommand('insertText', false, text);
+      if (/https?:\/\//.test(text)) {
+        const escaped = text
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/\n/g, '<br>');
+        const html = escaped.replace(/(https?:\/\/[^\s<]+)/g,
+          '<a href="$1" target="_blank" rel="noopener noreferrer">$1</a>');
+        document.execCommand('insertHTML', false, html);
+      } else {
+        document.execCommand('insertText', false, text);
+      }
     }
     titleEl.addEventListener('paste', plainPaste);
     contentEl.addEventListener('paste', plainPaste);
+
+    // 타이핑 중 공백/엔터 입력 시 앞쪽 URL을 자동으로 <a>로 변환
+    function autoLinkOnSpace(e) {
+      if (e.key !== ' ' && e.key !== 'Enter') return;
+      if (e.isComposing) return;
+      const host = e.currentTarget;
+      const sel = window.getSelection();
+      if (!sel || !sel.rangeCount) return;
+      const range = sel.getRangeAt(0);
+      if (!range.collapsed) return;
+      const node = range.startContainer;
+      if (node.nodeType !== 3) return; // TEXT_NODE
+      if (!host.contains(node)) return;
+
+      // 이미 <a> 내부면 스킵
+      let p = node.parentNode;
+      while (p && p !== host) {
+        if (p.tagName === 'A') return;
+        p = p.parentNode;
+      }
+
+      const offset = range.startOffset;
+      const textBefore = node.textContent.slice(0, offset);
+      const m = textBefore.match(/(^|\s)(https?:\/\/\S+)$/);
+      if (!m) return;
+
+      const url = m[2];
+      const start = offset - url.length;
+      const r = document.createRange();
+      r.setStart(node, start);
+      r.setEnd(node, offset);
+      r.deleteContents();
+
+      const a = document.createElement('a');
+      a.href = url;
+      a.target = '_blank';
+      a.rel = 'noopener noreferrer';
+      a.textContent = url;
+      r.insertNode(a);
+
+      // 커서를 <a> 뒤로 이동 → 이어지는 space/enter는 정상 입력
+      const nr = document.createRange();
+      nr.setStartAfter(a);
+      nr.collapse(true);
+      sel.removeAllRanges();
+      sel.addRange(nr);
+      save();
+    }
+    titleEl.addEventListener('keydown', autoLinkOnSpace);
+    contentEl.addEventListener('keydown', autoLinkOnSpace);
 
     attachDrag(b, handleEl);
     titleEl.addEventListener('input', save);
@@ -4845,6 +4941,55 @@ function setTool(tool, keepSel = false) {
     if (m > 11) { m = 0; y++; }
     renderCalendar(y, m);
   });
+
+  // ── 링크 호버 시 "열기" 버튼 (전역 이벤트 위임) ──
+  (function setupLinkHoverButton() {
+    const btn = document.createElement('button');
+    btn.className = 'link-open-btn';
+    btn.type = 'button';
+    btn.innerHTML = '↗ 열기';
+    document.body.appendChild(btn);
+
+    let currentHref = '';
+    let hideTimer = null;
+    const LINK_SELECTOR = '.block-title a, .block-content a';
+
+    function showFor(a) {
+      if (!a.href) return;
+      currentHref = a.href;
+      const rect = a.getBoundingClientRect();
+      btn.style.left = (rect.right + 4) + 'px';
+      btn.style.top  = (rect.top - 2) + 'px';
+      btn.style.display = 'block';
+    }
+    function scheduleHide() {
+      clearTimeout(hideTimer);
+      hideTimer = setTimeout(() => { btn.style.display = 'none'; }, 180);
+    }
+
+    document.addEventListener('mouseover', e => {
+      const a = e.target.closest(LINK_SELECTOR);
+      if (!a) return;
+      clearTimeout(hideTimer);
+      showFor(a);
+    });
+    document.addEventListener('mouseout', e => {
+      const a = e.target.closest(LINK_SELECTOR);
+      if (!a) return;
+      const to = e.relatedTarget;
+      if (to && (to === btn || btn.contains(to))) return;
+      scheduleHide();
+    });
+    btn.addEventListener('mouseenter', () => clearTimeout(hideTimer));
+    btn.addEventListener('mouseleave', scheduleHide);
+    btn.addEventListener('mousedown', e => { e.preventDefault(); e.stopPropagation(); });
+    btn.addEventListener('click', e => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (currentHref) window.open(currentHref, '_blank', 'noopener,noreferrer');
+      btn.style.display = 'none';
+    });
+  })();
 
 </script>
 
