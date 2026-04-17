@@ -195,13 +195,54 @@
     .folder-children {
       margin-left: 12px;
       overflow: hidden;
+      max-height: 600px;
+      transition: max-height 0.22s ease, opacity 0.18s ease;
+      opacity: 1;
     }
-    .folder-children.collapsed { display: none; }
+    .folder-children.collapsed {
+      max-height: 0;
+      opacity: 0;
+      pointer-events: none;
+    }
 
     /* 폴더 안 프로젝트는 점 대신 라인 */
     .folder-children .proj-item { padding-left: 8px; }
     .folder-children .proj-dot { background: #d0cfcc; width: 6px; height: 6px; }
     .folder-children .proj-item.active .proj-dot { background: #37352f; }
+
+    .sidebar-section-label {
+      font-size: 10px;
+      font-weight: 600;
+      color: #b0aea8;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      padding: 12px 10px 4px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .sidebar-section-label::before {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: #e3e2de;
+    }
+    .folder-item.shared-folder > .folder-row {
+      background: #f7f6f3;
+    }
+    .folder-item.shared-folder > .folder-row:hover {
+      background: #f0efec;
+    }
+    .shared-badge {
+      font-size: 9px;
+      background: #e8f0fe;
+      color: #4a90d9;
+      border-radius: 4px;
+      padding: 1px 5px;
+      font-weight: 600;
+      margin-left: auto;
+      flex-shrink: 0;
+    }
 
     /* ── 드래그 상태 ── */
     .proj-item.dragging  { opacity: 0.4; }
@@ -541,6 +582,17 @@
     .ctx-item.has-sub::after { content: '▶'; position: absolute; right: 10px; font-size: 9px; color: #aaa; }
     .ctx-sep { height: 1px; background: #e3e2de; margin: 4px 0; }
 
+    #ctx-folder-menu {
+      position: fixed;
+      background: #fff;
+      border: 1px solid #e3e2de;
+      border-radius: 8px;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.12);
+      z-index: 9999;
+      min-width: 160px;
+      padding: 4px;
+      display: none;
+    }
     #ctx-submenu {
       position: fixed;
       background: #fff;
@@ -1368,6 +1420,13 @@
   <div class="ctx-sep"></div>
   <div class="ctx-item danger" id="ctx-delete">삭제</div>
 </div>
+<div id="ctx-folder-menu">
+  <div class="ctx-item" id="ctx-folder-new-proj">새 프로젝트 추가</div>
+  <div class="ctx-item" id="ctx-folder-rename">이름 변경</div>
+  <div class="ctx-item" id="ctx-folder-share">공유 관리</div>
+  <div class="ctx-sep"></div>
+  <div class="ctx-item danger" id="ctx-folder-delete">삭제</div>
+</div>
 <div id="ctx-submenu"></div>
 
 <div id="viewport">
@@ -1418,10 +1477,16 @@
     </svg>
   </button>
   <div style="height:1px;background:#e3e2de;margin:4px 2px;"></div>
-  <button class="tool-btn" id="btn-copy-selected" data-tip="선택 복사 (Ctrl+C)" style="opacity:0.3;pointer-events:none;">
+  <button class="tool-btn" id="btn-copy-selected" data-tip="선택 복사  Ctrl+C" style="opacity:0.3;pointer-events:none;">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
       <rect x="9" y="9" width="13" height="13" rx="2"/>
       <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+    </svg>
+  </button>
+  <button class="tool-btn" id="btn-paste" data-tip="붙여넣기  Ctrl+V" style="opacity:0.3;pointer-events:none;">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/>
+      <rect x="8" y="2" width="8" height="4" rx="1"/>
     </svg>
   </button>
   <button class="tool-btn" id="btn-delete-selected" data-tip="선택 삭제" style="color:#e03e3e;opacity:0.3;pointer-events:none;">
@@ -1430,6 +1495,12 @@
       <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
       <path d="M10 11v6M14 11v6"/>
       <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>
+    </svg>
+  </button>
+  <button class="tool-btn" id="btn-home" data-tip="원점으로  Home">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M3 9.5L12 3l9 6.5V20a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9.5z"/>
+      <polyline points="9 21 9 12 15 12 15 21"/>
     </svg>
   </button>
   <button class="tool-btn" id="btn-help" data-tip="사용법">
@@ -1472,54 +1543,7 @@
       <div style="font-size:16px;font-weight:700;color:#37352f;">사용법 가이드</div>
       <button id="help-modal-close" style="background:none;border:none;cursor:pointer;color:#aaa;font-size:18px;line-height:1;padding:2px 4px;border-radius:4px;">✕</button>
     </div>
-    <div style="overflow-y:auto;padding:20px 24px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans KR',sans-serif;color:#37352f;">
-
-      <div class="help-section">
-        <div class="help-title">캔버스 조작</div>
-        <div class="help-row"><span class="help-key">더블클릭</span><span>텍스트 블록 생성</span></div>
-        <div class="help-row"><span class="help-key">휠 스크롤</span><span>확대 / 축소</span></div>
-        <div class="help-row"><span class="help-key">Space + 드래그</span><span>화면 이동 (패닝)</span></div>
-      </div>
-
-      <div class="help-section">
-        <div class="help-title">슬래시 커맨드</div>
-        <div class="help-row"><span class="help-key">/섹션 + 스페이스</span><span>큰 제목 (~40px)</span></div>
-        <div class="help-row"><span class="help-key">/제목 + 스페이스</span><span>중간 제목 (~30px)</span></div>
-        <div class="help-row"><span class="help-key">/설명 + 스페이스</span><span>일반 크기로 복귀</span></div>
-      </div>
-
-      <div class="help-section">
-        <div class="help-title">블록 이동 / 선택</div>
-        <div class="help-row"><span class="help-key">⋮⋮ 핸들 드래그</span><span>블록 단독 이동</span></div>
-        <div class="help-row"><span class="help-key">S 키</span><span>그룹 선택 모드 (드래그로 여러 블록 선택)</span></div>
-        <div class="help-row"><span class="help-key">그룹 선택 후 빈 캔버스 드래그</span><span>선택 블록 전체 이동</span></div>
-        <div class="help-row"><span class="help-key">V 키 / Esc</span><span>포인터 모드 복귀</span></div>
-      </div>
-
-      <div class="help-section">
-        <div class="help-title">단축키</div>
-        <div class="help-row"><span class="help-key">Ctrl+F</span><span>전체 프로젝트 검색</span></div>
-        <div class="help-row"><span class="help-key">Ctrl+C</span><span>선택 블록 복사</span></div>
-        <div class="help-row"><span class="help-key">Ctrl+V</span><span>붙여넣기</span></div>
-        <div class="help-row"><span class="help-key">Ctrl+Z</span><span>되돌리기 (최대 20단계)</span></div>
-        <div class="help-row"><span class="help-key">Delete / Backspace</span><span>선택 블록 삭제</span></div>
-      </div>
-
-      <div class="help-section">
-        <div class="help-title">파일 업로드</div>
-        <div class="help-row"><span class="help-key">하단 추가 버튼</span><span>이미지·PDF·Excel·Word·PPT·TXT 업로드</span></div>
-        <div class="help-row"><span class="help-key">드래그 앤 드롭</span><span>파일을 캔버스에 바로 드롭</span></div>
-        <div class="help-row"><span class="help-key">이미지 클릭</span><span>미리보기 + 다운로드</span></div>
-        <div class="help-row"><span class="help-key">PDF 클릭</span><span>브라우저 내 미리보기</span></div>
-      </div>
-
-      <div class="help-section">
-        <div class="help-title">프로젝트 관리</div>
-        <div class="help-row"><span class="help-key">프로젝트 이름 더블클릭</span><span>이름 편집</span></div>
-        <div class="help-row"><span class="help-key">돋보기 아이콘</span><span>전체 프로젝트 검색 열기</span></div>
-        <div class="help-row"><span class="help-key">다운로드 버튼</span><span>ZIP으로 전체 내보내기 (위치 보존)</span></div>
-      </div>
-
+    <div id="help-content" style="overflow-y:auto;padding:20px 24px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans KR',sans-serif;color:#37352f;">
     </div>
   </div>
 </div>
@@ -1537,6 +1561,22 @@
   </div>
   <div id="text-overview-canvas">
     <div id="text-overview-world"></div>
+  </div>
+</div>
+
+<!-- 폴더 공유 모달 -->
+<div id="share-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:3000;align-items:center;justify-content:center;">
+  <div style="background:#fff;border-radius:14px;padding:28px 28px 22px;width:360px;box-shadow:0 8px 40px rgba(0,0,0,0.2);">
+    <div style="font-size:15px;font-weight:700;color:#37352f;margin-bottom:4px;">폴더 공유</div>
+    <div id="share-folder-name" style="font-size:12px;color:#aaa;margin-bottom:18px;"></div>
+    <div style="display:flex;gap:8px;margin-bottom:14px;">
+      <input id="share-input" type="text" placeholder="계정명 입력" style="flex:1;padding:9px 12px;border:1.5px solid #e3e2de;border-radius:8px;font-size:13px;color:#37352f;outline:none;font-family:inherit;" />
+      <button id="share-add-btn" style="padding:9px 16px;border:none;background:#37352f;color:#fff;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;">추가</button>
+    </div>
+    <div id="share-list" style="display:flex;flex-direction:column;gap:6px;min-height:20px;margin-bottom:18px;"></div>
+    <div style="display:flex;justify-content:flex-end;">
+      <button id="share-close-btn" style="padding:8px 20px;border:1px solid #e3e2de;background:#fff;color:#555;border-radius:8px;font-size:13px;cursor:pointer;">닫기</button>
+    </div>
   </div>
 </div>
 
@@ -1665,7 +1705,9 @@
   }
 
   // ── 로그인 ───────────────────────────────────────────────
-  const ACCOUNTS = { '1': '1', '2': '2' }; // { id: pw }
+  const ACCOUNTS    = { 'admin': '1', '2': '2', 'bae': 'bae' }; // { id: pw }
+  const OWNER_MAP   = { 'admin': 'min' }; // 로그인 ID → DB owner ID 매핑
+  const GUEST_USERS = new Set(['bae']); // 공유 전용 계정 — 생성 불가, 공유 폴더만 열람
   const AUTH_KEY  = 'wf_auth';
   const OWNER_KEY = 'wf_owner';
 
@@ -1681,7 +1723,7 @@
     if (ACCOUNTS[id] && ACCOUNTS[id] === pw) {
       stopLoginAnims(); // Three.js + 텍스트 루프 즉시 종료
       sessionStorage.setItem(AUTH_KEY,  '1');
-      sessionStorage.setItem(OWNER_KEY, id);  // '1' 또는 '2'
+      sessionStorage.setItem(OWNER_KEY, OWNER_MAP[id] || id);  // DB owner ID로 저장
       // owner가 올바르게 적용되도록 페이지 리로드
       window.location.reload();
     } else {
@@ -1900,7 +1942,8 @@
   }
 
   // 현재 로그인한 유저의 owner ID
-  const currentOwner = sessionStorage.getItem(OWNER_KEY) || '1';
+  const currentOwner = sessionStorage.getItem(OWNER_KEY) || 'min';
+  const isGuest      = GUEST_USERS.has(currentOwner);
 
   // ── Supabase 클라이언트 ──────────────────────────────────
   const SUPABASE_URL = 'https://kogavwpllfiemnzfpqkt.supabase.co';
@@ -1908,13 +1951,28 @@
   const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
   async function loadProjects() {
+    if (isGuest) {
+      // 공유 폴더 목록을 먼저 구한 뒤 그 안의 프로젝트만 가져옴
+      const sharedFolders = await loadFolders();
+      const folderIds = sharedFolders.map(f => f.id);
+      if (folderIds.length === 0) return [];
+      const { data } = await sb.from('projects').select('*').in('folder_id', folderIds).order('created_at');
+      return (data || []).sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
+    }
     const { data } = await sb.from('projects').select('*').eq('owner', currentOwner).order('created_at');
     return (data || []).sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
   }
 
   async function loadFolders() {
-    const { data } = await sb.from('folders').select('*').eq('owner', currentOwner).order('created_at');
-    return (data || []).sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
+    let query;
+    if (isGuest) {
+      query = sb.from('folders').select('*').contains('shared_with', [currentOwner]);
+    } else {
+      query = sb.from('folders').select('*').eq('owner', currentOwner);
+    }
+    const { data } = await query.order('created_at');
+    return (data || []).sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
+      .map(f => ({ ...f, collapsed: true }));
   }
 
   let folders       = [];
@@ -1939,17 +1997,6 @@
     name.innerText = p.name;
 
     name.addEventListener('click', e => { if (name.contentEditable === 'true') e.stopPropagation(); });
-    name.addEventListener('dblclick', e => {
-      e.stopPropagation();
-      name.contentEditable = 'true';
-      name.focus();
-      const range = document.createRange();
-      range.selectNodeContents(name);
-      range.collapse(false);
-      const sel = window.getSelection();
-      sel.removeAllRanges();
-      sel.addRange(range);
-    });
     name.addEventListener('blur', async () => {
       name.contentEditable = 'false';
       p.name = name.innerText.trim() || '이름 없음';
@@ -2078,6 +2125,7 @@
     // ── 우클릭 컨텍스트 메뉴 ──
     item.addEventListener('contextmenu', e => {
       e.preventDefault();
+      e.stopPropagation();
       showCtxMenu(e, p);
     });
 
@@ -2118,16 +2166,6 @@
     name.innerText = f.name;
 
     name.addEventListener('click', e => { if (name.contentEditable === 'true') e.stopPropagation(); });
-    name.addEventListener('dblclick', e => {
-      e.stopPropagation();
-      name.contentEditable = 'true';
-      name.focus();
-      const range = document.createRange();
-      range.selectNodeContents(name);
-      range.collapse(false);
-      window.getSelection().removeAllRanges();
-      window.getSelection().addRange(range);
-    });
     name.addEventListener('blur', async () => {
       name.contentEditable = 'false';
       f.name = name.innerText.trim() || '폴더';
@@ -2212,18 +2250,15 @@
       });
     });
 
-    // ── 폴더 토글 ──
-    arrow.addEventListener('click', async e => {
-      e.stopPropagation();
+    // ── 폴더 토글 (row 전체 클릭) ──
+    row.addEventListener('click', async e => {
+      if (e.target.closest('.folder-del')) return;
+      if (name.contentEditable === 'true') return;
       f.collapsed = !f.collapsed;
-      await sb.from('folders').update({ collapsed: f.collapsed }).eq('id', f.id);
-      renderSidebar();
-    });
-    icon.addEventListener('click', async e => {
-      e.stopPropagation();
-      f.collapsed = !f.collapsed;
-      await sb.from('folders').update({ collapsed: f.collapsed }).eq('id', f.id);
-      renderSidebar();
+      // 전체 재렌더 없이 해당 요소만 업데이트
+      arrow.textContent = f.collapsed ? '▶' : '▼';
+      children.classList.toggle('collapsed', f.collapsed);
+      try { await sb.from('folders').update({ collapsed: f.collapsed }).eq('id', f.id); } catch {}
     });
 
     // ── 프로젝트 드롭 수신 (폴더 안으로) ──
@@ -2259,12 +2294,23 @@
     row.appendChild(name);
     row.appendChild(del);
 
+    // ── 폴더 우클릭 메뉴 ──
+    container.addEventListener('contextmenu', e => {
+      e.preventDefault();
+      e.stopPropagation();
+      showFolderCtxMenu(e, f);
+    });
+
     // ── 폴더 자체 드래그 (순서 변경) ──
     // row를 drag source로 사용 (container 전체보다 안정적)
     row.draggable = true;
-    // folder-name의 contenteditable이 drag를 방해하지 않도록
+    // folder-name 텍스트 선택 방지 (drag 막지 않도록 preventDefault 제거)
     name.addEventListener('mousedown', e => {
-      if (name.contentEditable !== 'true') e.preventDefault();
+      if (name.contentEditable !== 'true') {
+        row.draggable = true;
+      } else {
+        row.draggable = false; // 이름 편집 중엔 드래그 비활성
+      }
     });
     row.addEventListener('dragstart', e => {
       window.getSelection().removeAllRanges();
@@ -2347,9 +2393,38 @@
       list.appendChild(createProjItem(p));
     }
 
-    // 폴더들 (하단)
-    for (const f of folders) {
-      list.appendChild(createFolderEl(f));
+    if (isGuest) {
+      // 게스트: 공유된 폴더 전부 표시 (분리 없음)
+      for (const f of folders) {
+        list.appendChild(createFolderEl(f));
+      }
+    } else {
+      // 오너: 내 폴더 / 공유 중인 폴더 분리
+      const myFolders     = folders.filter(f => !(f.shared_with?.length > 0));
+      const sharedFolders = folders.filter(f =>   f.shared_with?.length > 0);
+
+      for (const f of myFolders) {
+        list.appendChild(createFolderEl(f));
+      }
+
+      if (sharedFolders.length > 0) {
+        const label = document.createElement('div');
+        label.className = 'sidebar-section-label';
+        label.textContent = '공유 중';
+        list.appendChild(label);
+
+        for (const f of sharedFolders) {
+          const el = createFolderEl(f);
+          el.classList.add('shared-folder');
+          // 공유 뱃지 추가
+          const row = el.querySelector('.folder-row');
+          const badge = document.createElement('span');
+          badge.className = 'shared-badge';
+          badge.textContent = `${f.shared_with.length}명`;
+          row.appendChild(badge);
+          list.appendChild(el);
+        }
+      }
     }
 
     // project-list 자체에도 드롭 허용 (폴더에서 꺼내기 - 빈 영역 드롭)
@@ -2373,6 +2448,7 @@
   let ctxTargetProj   = null;
 
   function showCtxMenu(e, p) {
+    if (isGuest) return;
     ctxTargetProj = p;
     ctxSubmenu.style.display = 'none';
 
@@ -2394,6 +2470,169 @@
     ctxTargetProj = null;
   }
 
+  const ctxFolderMenu = document.getElementById('ctx-folder-menu');
+  let ctxTargetFolder = null;
+
+  function showFolderCtxMenu(e, f) {
+    if (isGuest) return;
+    ctxTargetFolder = f;
+    hideCtxMenu();
+    ctxFolderMenu.style.display = 'block';
+    const x = Math.min(e.clientX, window.innerWidth  - 180);
+    const y = Math.min(e.clientY, window.innerHeight - 120);
+    ctxFolderMenu.style.left = x + 'px';
+    ctxFolderMenu.style.top  = y + 'px';
+  }
+
+  function hideFolderCtxMenu() {
+    ctxFolderMenu.style.display = 'none';
+    ctxTargetFolder = null;
+  }
+
+  document.addEventListener('click', hideFolderCtxMenu);
+  document.addEventListener('contextmenu', e => {
+    if (!e.target.closest('.folder-row')) hideFolderCtxMenu();
+  });
+
+  // 폴더 컨텍스트 — 새 프로젝트 추가
+  document.getElementById('ctx-folder-new-proj').addEventListener('click', async () => {
+    if (!ctxTargetFolder) return;
+    const f = ctxTargetFolder;
+    hideFolderCtxMenu();
+    const p = { id: 'proj_' + Date.now(), name: '새 프로젝트', folder_id: f.id };
+    await sb.from('projects').insert({ id: p.id, name: p.name, owner: currentOwner, folder_id: f.id });
+    projects.push(p);
+    // 폴더 펼치기
+    f.collapsed = false;
+    await sb.from('folders').update({ collapsed: false }).eq('id', f.id);
+    await switchProject(p.id);
+    setTimeout(() => {
+      const item = document.querySelector(`.proj-item[data-id="${p.id}"]`);
+      if (item) item.querySelector('.proj-name').focus();
+    }, 50);
+  });
+
+  // 폴더 컨텍스트 — 이름 변경
+  document.getElementById('ctx-folder-rename').addEventListener('click', () => {
+    if (!ctxTargetFolder) return;
+    const f = ctxTargetFolder;
+    hideFolderCtxMenu();
+    const row = document.querySelector(`.folder-item[data-folder-id="${f.id}"] .folder-row`);
+    if (!row) return;
+    const nameEl = row.querySelector('.folder-name');
+    nameEl.contentEditable = 'true';
+    nameEl.focus();
+    const range = document.createRange();
+    range.selectNodeContents(nameEl);
+    window.getSelection().removeAllRanges();
+    window.getSelection().addRange(range);
+  });
+
+  // 폴더 컨텍스트 — 삭제 (기존 del 버튼과 동일 로직)
+  document.getElementById('ctx-folder-delete').addEventListener('click', async () => {
+    if (!ctxTargetFolder) return;
+    const f = ctxTargetFolder;
+    hideFolderCtxMenu();
+    const innerProjects = projects.filter(p => p.folder_id === f.id);
+    for (const p of innerProjects) {
+      await sb.from('canvases').delete().eq('project_id', p.id);
+    }
+    await sb.from('projects').delete().in('id', innerProjects.map(p => p.id));
+    projects = projects.filter(p => p.folder_id !== f.id);
+    await sb.from('folders').delete().eq('id', f.id);
+    folders = folders.filter(x => x.id !== f.id);
+    if (currentProjId === null && projects.length > 0) {
+      await switchProject(projects[0].id);
+    } else {
+      renderSidebar();
+    }
+  });
+
+  // ── 공유 모달 ────────────────────────────────────────────
+  const shareModal      = document.getElementById('share-modal');
+  const shareInput      = document.getElementById('share-input');
+  const shareList       = document.getElementById('share-list');
+  const shareFolderName = document.getElementById('share-folder-name');
+  let shareTargetFolder = null;
+
+  function renderShareList() {
+    shareList.innerHTML = '';
+    const arr = shareTargetFolder?.shared_with || [];
+    if (arr.length === 0) {
+      shareList.innerHTML = '<div style="font-size:12px;color:#bbb;">공유된 계정이 없습니다.</div>';
+      return;
+    }
+    arr.forEach(user => {
+      const row = document.createElement('div');
+      row.style.cssText = 'display:flex;align-items:center;justify-content:space-between;padding:7px 10px;background:#f7f6f3;border-radius:7px;font-size:13px;color:#37352f;';
+      row.innerHTML = `<span>${user}</span>`;
+      const del = document.createElement('button');
+      del.textContent = '✕';
+      del.style.cssText = 'border:none;background:none;color:#aaa;cursor:pointer;font-size:13px;padding:0 2px;';
+      del.addEventListener('click', async () => {
+        const newArr = shareTargetFolder.shared_with.filter(u => u !== user);
+        await sb.from('folders').update({ shared_with: newArr }).eq('id', shareTargetFolder.id);
+        shareTargetFolder.shared_with = newArr;
+        renderShareList();
+      });
+      row.appendChild(del);
+      shareList.appendChild(row);
+    });
+  }
+
+  async function openShareModal(f) {
+    shareTargetFolder = f;
+    // DB에서 최신 shared_with 불러오기
+    const { data } = await sb.from('folders').select('shared_with').eq('id', f.id).single();
+    shareTargetFolder.shared_with = data?.shared_with || [];
+    shareFolderName.textContent = '📁 ' + f.name;
+    shareInput.value = '';
+    renderShareList();
+    shareModal.style.display = 'flex';
+    setTimeout(() => shareInput.focus(), 50);
+  }
+
+  document.getElementById('share-add-btn').addEventListener('click', async () => {
+    const user = shareInput.value.trim();
+    if (!user) return;
+    if (!ACCOUNTS[user]) {
+      alert('존재하지 않는 계정입니다.');
+      return;
+    }
+    if ((shareTargetFolder.shared_with || []).includes(user)) {
+      alert('이미 공유된 계정입니다.');
+      return;
+    }
+    const newArr = [...(shareTargetFolder.shared_with || []), user];
+    await sb.from('folders').update({ shared_with: newArr }).eq('id', shareTargetFolder.id);
+    shareTargetFolder.shared_with = newArr;
+    shareInput.value = '';
+    renderShareList();
+  });
+
+  shareInput.addEventListener('keydown', e => {
+    if (e.key === 'Enter') document.getElementById('share-add-btn').click();
+  });
+
+  document.getElementById('share-close-btn').addEventListener('click', () => {
+    shareModal.style.display = 'none';
+    shareTargetFolder = null;
+  });
+
+  shareModal.addEventListener('click', e => {
+    if (e.target === shareModal) {
+      shareModal.style.display = 'none';
+      shareTargetFolder = null;
+    }
+  });
+
+  document.getElementById('ctx-folder-share').addEventListener('click', () => {
+    if (!ctxTargetFolder) return;
+    const f = ctxTargetFolder;
+    hideFolderCtxMenu();
+    openShareModal(f);
+  });
+
   document.addEventListener('click', hideCtxMenu);
   document.addEventListener('contextmenu', e => {
     if (!e.target.closest('.proj-item')) hideCtxMenu();
@@ -2402,8 +2641,9 @@
   // 이름 변경
   document.getElementById('ctx-rename').addEventListener('click', () => {
     if (!ctxTargetProj) return;
+    const proj = ctxTargetProj;
     hideCtxMenu();
-    const item = document.querySelector(`.proj-item[data-id="${ctxTargetProj.id}"]`);
+    const item = document.querySelector(`.proj-item[data-id="${proj.id}"]`);
     if (!item) return;
     const nameEl = item.querySelector('.proj-name');
     nameEl.contentEditable = 'true';
@@ -2469,17 +2709,19 @@
   });
 
   // ── 프로젝트 전환 ───────────────────────────────────────────
-  async function switchProject(id) {
+  async function switchProject(id, pasteAfter = false) {
     // 텍스트 전체보기가 열려있으면 닫기
     const ovEl = document.getElementById('text-overview-overlay');
     if (ovEl) ovEl.classList.remove('open');
 
-    await saveCanvas();
+    try { await saveCanvas(); } catch {}
     clearCanvas();
     currentProjId = id;
     renderSidebar();
-    await loadCanvas();
+    try { await loadCanvas(); } catch {}
     updateCanvasTitle();
+    updatePasteBtn();
+    if (pasteAfter) pasteClipboard();
   }
 
   // ── 새 프로젝트 추가 ────────────────────────────────────────
@@ -2748,6 +2990,27 @@
     updateCanvasTitle();
   }
 
+  // ── 원점 이동 (Home) ────────────────────────────────────
+  function goHome() {
+    const startTx = tx, startTy = ty;
+    const startScale = scale, targetScale = 0.5;
+    const duration = 350;
+    const start = performance.now();
+    function step(now) {
+      const t = Math.min((now - start) / duration, 1);
+      const ease = 1 - Math.pow(1 - t, 3);
+      tx    = startTx    + (0            - startTx)    * ease;
+      ty    = startTy    + (0            - startTy)    * ease;
+      scale = startScale + (targetScale  - startScale) * ease;
+      refresh();
+      if (t < 1) requestAnimationFrame(step);
+      else save();
+    }
+    requestAnimationFrame(step);
+  }
+
+  document.getElementById('btn-home').addEventListener('click', goHome);
+
   // ── 휠 줌 ────────────────────────────────────────────────
   viewport.addEventListener('wheel', e => {
     e.preventDefault();
@@ -2860,6 +3123,7 @@ function setTool(tool, keepSel = false) {
     if (e.key === 'v' || e.key === 'V') setTool('pointer');
     if (e.key === 's' || e.key === 'S') setTool('select');
     if (e.key === 'Escape') setTool('pointer');
+    if (e.key === 'Home') { e.preventDefault(); goHome(); }
 
     // 선택된 블록 일괄 삭제 (Delete / Backspace)
     if ((e.key === 'Delete' || e.key === 'Backspace') && selected.size > 0) {
@@ -2884,15 +3148,25 @@ function setTool(tool, keepSel = false) {
 
   const btnDeleteSelected = document.getElementById('btn-delete-selected');
   const btnCopySelected   = document.getElementById('btn-copy-selected');
+  const btnPaste          = document.getElementById('btn-paste');
   let clipboard = []; // 복사된 블록 스냅샷
 
   function updateDeleteBtn() {
     const active = selected.size > 0;
-    btnDeleteSelected.style.opacity     = active ? '1' : '0.3';
+    btnDeleteSelected.style.opacity      = active ? '1' : '0.3';
     btnDeleteSelected.style.pointerEvents = active ? '' : 'none';
-    btnCopySelected.style.opacity       = active ? '1' : '0.3';
-    btnCopySelected.style.pointerEvents = active ? '' : 'none';
+    btnCopySelected.style.opacity        = active ? '1' : '0.3';
+    btnCopySelected.style.pointerEvents  = active ? '' : 'none';
   }
+
+  function updatePasteBtn() {
+    const hasClip = clipboard.length > 0 ||
+      !!sessionStorage.getItem(CLIPBOARD_KEY);
+    btnPaste.style.opacity      = hasClip ? '1' : '0.3';
+    btnPaste.style.pointerEvents = hasClip ? '' : 'none';
+  }
+
+  const CLIPBOARD_KEY = 'wf_clipboard';
 
   function copySelected() {
     if (selected.size === 0) return;
@@ -2908,9 +3182,19 @@ function setTool(tool, keepSel = false) {
           name: b.name, fileType: b.fileType, src: b.src };
       }
     }).filter(Boolean);
+    // sessionStorage에 저장 — 프로젝트 전환 후에도 유지
+    try { sessionStorage.setItem(CLIPBOARD_KEY, JSON.stringify(clipboard)); } catch {}
+    updatePasteBtn();
   }
 
   function pasteClipboard() {
+    // 메모리 clipboard가 비어있으면 sessionStorage에서 복원
+    if (clipboard.length === 0) {
+      try {
+        const raw = sessionStorage.getItem(CLIPBOARD_KEY);
+        if (raw) clipboard = JSON.parse(raw);
+      } catch {}
+    }
     if (clipboard.length === 0) return;
     const OFFSET = 30;
     clearSel();
@@ -2941,8 +3225,12 @@ function setTool(tool, keepSel = false) {
 
   btnCopySelected.addEventListener('click', () => {
     copySelected();
-    pasteClipboard();
+    const tip = btnCopySelected.getAttribute('data-tip');
+    btnCopySelected.setAttribute('data-tip', '복사 완료!');
+    setTimeout(() => btnCopySelected.setAttribute('data-tip', tip), 1500);
   });
+
+  btnPaste.addEventListener('click', () => { pasteClipboard(); });
 
   // Ctrl+C / Ctrl+V / Ctrl+Z
   document.addEventListener('keydown', e => {
@@ -3698,11 +3986,97 @@ function setTool(tool, keepSel = false) {
       await migrateFromLocalStorage();
       console.log('[memo] migration done');
 
+      // 게스트 계정이면 생성 버튼 + Brain Map 숨김
+      if (isGuest) {
+        document.getElementById('add-project-btn').style.display  = 'none';
+        document.getElementById('add-folder-btn').style.display   = 'none';
+        document.getElementById('btn-text-overview').style.display = 'none';
+      }
+
+      // 도움말 내용 — 계정에 따라 다르게
+      document.getElementById('help-content').innerHTML = isGuest ? `
+        <div class="help-section">
+          <div class="help-title">캔버스 조작</div>
+          <div class="help-row"><span class="help-key">더블클릭</span><span>텍스트 블록 생성</span></div>
+          <div class="help-row"><span class="help-key">휠 스크롤</span><span>확대 / 축소</span></div>
+          <div class="help-row"><span class="help-key">Space + 드래그</span><span>화면 이동 (패닝)</span></div>
+          <div class="help-row"><span class="help-key">Home</span><span>원점으로 이동 (50% 배율)</span></div>
+        </div>
+        <div class="help-section">
+          <div class="help-title">슬래시 커맨드</div>
+          <div class="help-row"><span class="help-key">/섹션 + 스페이스</span><span>큰 제목 (~40px)</span></div>
+          <div class="help-row"><span class="help-key">/제목 + 스페이스</span><span>중간 제목 (~30px)</span></div>
+          <div class="help-row"><span class="help-key">/설명 + 스페이스</span><span>일반 크기로 복귀</span></div>
+        </div>
+        <div class="help-section">
+          <div class="help-title">블록 이동 / 선택</div>
+          <div class="help-row"><span class="help-key">⋮⋮ 핸들 드래그</span><span>블록 단독 이동</span></div>
+          <div class="help-row"><span class="help-key">S 키</span><span>그룹 선택 모드</span></div>
+          <div class="help-row"><span class="help-key">그룹 선택 후 빈 캔버스 드래그</span><span>선택 블록 전체 이동</span></div>
+          <div class="help-row"><span class="help-key">V 키 / Esc</span><span>포인터 모드 복귀</span></div>
+        </div>
+        <div class="help-section">
+          <div class="help-title">단축키</div>
+          <div class="help-row"><span class="help-key">Ctrl+Z</span><span>되돌리기 (최대 20단계)</span></div>
+          <div class="help-row"><span class="help-key">Delete / Backspace</span><span>선택 블록 삭제</span></div>
+        </div>
+        <div class="help-section">
+          <div class="help-title">파일 업로드</div>
+          <div class="help-row"><span class="help-key">하단 추가 버튼</span><span>이미지·PDF·Excel·Word·PPT·TXT 업로드</span></div>
+          <div class="help-row"><span class="help-key">드래그 앤 드롭</span><span>파일을 캔버스에 바로 드롭</span></div>
+          <div class="help-row"><span class="help-key">이미지 클릭</span><span>미리보기 + 다운로드</span></div>
+          <div class="help-row"><span class="help-key">PDF 클릭</span><span>브라우저 내 미리보기</span></div>
+        </div>
+      ` : `
+        <div class="help-section">
+          <div class="help-title">캔버스 조작</div>
+          <div class="help-row"><span class="help-key">더블클릭</span><span>텍스트 블록 생성</span></div>
+          <div class="help-row"><span class="help-key">휠 스크롤</span><span>확대 / 축소</span></div>
+          <div class="help-row"><span class="help-key">Space + 드래그</span><span>화면 이동 (패닝)</span></div>
+          <div class="help-row"><span class="help-key">Home</span><span>원점으로 이동 (50% 배율)</span></div>
+        </div>
+        <div class="help-section">
+          <div class="help-title">슬래시 커맨드</div>
+          <div class="help-row"><span class="help-key">/섹션 + 스페이스</span><span>큰 제목 (~40px)</span></div>
+          <div class="help-row"><span class="help-key">/제목 + 스페이스</span><span>중간 제목 (~30px)</span></div>
+          <div class="help-row"><span class="help-key">/설명 + 스페이스</span><span>일반 크기로 복귀</span></div>
+        </div>
+        <div class="help-section">
+          <div class="help-title">블록 이동 / 선택</div>
+          <div class="help-row"><span class="help-key">⋮⋮ 핸들 드래그</span><span>블록 단독 이동</span></div>
+          <div class="help-row"><span class="help-key">S 키</span><span>그룹 선택 모드 (드래그로 여러 블록 선택)</span></div>
+          <div class="help-row"><span class="help-key">그룹 선택 후 빈 캔버스 드래그</span><span>선택 블록 전체 이동</span></div>
+          <div class="help-row"><span class="help-key">V 키 / Esc</span><span>포인터 모드 복귀</span></div>
+        </div>
+        <div class="help-section">
+          <div class="help-title">단축키</div>
+          <div class="help-row"><span class="help-key">Ctrl+F</span><span>전체 프로젝트 검색</span></div>
+          <div class="help-row"><span class="help-key">Ctrl+C</span><span>선택 블록 복사</span></div>
+          <div class="help-row"><span class="help-key">Ctrl+V</span><span>붙여넣기 (다른 프로젝트 간 가능)</span></div>
+          <div class="help-row"><span class="help-key">Ctrl+Z</span><span>되돌리기 (최대 20단계)</span></div>
+          <div class="help-row"><span class="help-key">Delete / Backspace</span><span>선택 블록 삭제</span></div>
+        </div>
+        <div class="help-section">
+          <div class="help-title">파일 업로드</div>
+          <div class="help-row"><span class="help-key">하단 추가 버튼</span><span>이미지·PDF·Excel·Word·PPT·TXT 업로드</span></div>
+          <div class="help-row"><span class="help-key">드래그 앤 드롭</span><span>파일을 캔버스에 바로 드롭</span></div>
+          <div class="help-row"><span class="help-key">이미지 클릭</span><span>미리보기 + 다운로드</span></div>
+          <div class="help-row"><span class="help-key">PDF 클릭</span><span>브라우저 내 미리보기</span></div>
+        </div>
+        <div class="help-section">
+          <div class="help-title">프로젝트 관리</div>
+          <div class="help-row"><span class="help-key">우클릭</span><span>이름 변경 / 폴더 이동 / 삭제</span></div>
+          <div class="help-row"><span class="help-key">폴더 우클릭</span><span>새 프로젝트 추가 / 공유 관리</span></div>
+          <div class="help-row"><span class="help-key">돋보기 아이콘</span><span>전체 프로젝트 검색</span></div>
+          <div class="help-row"><span class="help-key">다운로드 버튼</span><span>ZIP으로 전체 내보내기</span></div>
+        </div>
+      `;
+
       [folders, projects] = await Promise.all([loadFolders(), loadProjects()]);
       console.log('[memo] folders loaded:', folders.length);
       console.log('[memo] projects loaded:', projects.length, projects.map(p=>p.name));
 
-      if (projects.length === 0) {
+      if (!isGuest && projects.length === 0) {
         const def = { id: 'proj_' + Date.now(), name: '프로젝트 1', folder_id: null };
         const { error } = await sb.from('projects').insert({ id: def.id, name: def.name, owner: currentOwner });
         if (error) throw error;
