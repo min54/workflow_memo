@@ -2830,6 +2830,47 @@
   const imgBlocks  = [];
   const fileBlocks = [];
 
+  // ── 유틸: 기존 텍스트 속 URL을 <a>로 감싸기 (이미 <a> 내부는 건너뜀) ──
+  function linkifyElement(root) {
+    if (!root) return false;
+    const URL_RE = /https?:\/\/[^\s<]+/g;
+    const textNodes = [];
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+      acceptNode(node) {
+        let p = node.parentNode;
+        while (p && p !== root) {
+          if (p.tagName === 'A') return NodeFilter.FILTER_REJECT;
+          p = p.parentNode;
+        }
+        return NodeFilter.FILTER_ACCEPT;
+      }
+    });
+    while (walker.nextNode()) textNodes.push(walker.currentNode);
+
+    let changed = false;
+    for (const node of textNodes) {
+      const text = node.textContent;
+      if (!/https?:\/\//.test(text)) continue;
+      URL_RE.lastIndex = 0;
+      const frag = document.createDocumentFragment();
+      let last = 0, m;
+      while ((m = URL_RE.exec(text)) !== null) {
+        if (m.index > last) frag.appendChild(document.createTextNode(text.slice(last, m.index)));
+        const a = document.createElement('a');
+        a.href = m[0];
+        a.target = '_blank';
+        a.rel = 'noopener noreferrer';
+        a.textContent = m[0];
+        frag.appendChild(a);
+        last = URL_RE.lastIndex;
+      }
+      if (last < text.length) frag.appendChild(document.createTextNode(text.slice(last)));
+      node.parentNode.replaceChild(frag, node);
+      changed = true;
+    }
+    return changed;
+  }
+
   // ── 저장 / 불러오기 (Supabase) ────────────────────────────
   function save() { saveCanvas(); }
 
@@ -2907,6 +2948,8 @@
       if (d.title)   b.titleEl.innerHTML   = d.title;
       if (d.content) b.contentEl.innerHTML = d.content;
       if (d.color) { b.titleEl.style.color = d.color; b.contentEl.style.color = d.color; b.color = d.color; }
+      linkifyElement(b.titleEl);
+      linkifyElement(b.contentEl);
     }
     for (const d of snapshot.images) {
       const b = makeImgBlock(d.wx, d.wy, d.src, d.w, d.h, d.label);
@@ -2941,6 +2984,7 @@
       scale = 0.5;
       tx    = 0;
       ty    = 0;
+      let linkified = false;
       for (const d of saved.blocks) {
         const b = makeBlock(d.wx, d.wy);
         if (d.title)   b.titleEl.innerHTML   = d.title;
@@ -2950,6 +2994,9 @@
           b.contentEl.style.color = d.color;
           b.color = d.color;
         }
+        // 기존 블록의 URL 텍스트를 <a>로 업그레이드 (1회)
+        if (linkifyElement(b.titleEl))   linkified = true;
+        if (linkifyElement(b.contentEl)) linkified = true;
       }
       if (saved.images) {
         for (const d of saved.images) {
@@ -2964,6 +3011,8 @@
         }
       }
       refresh();
+      // 링크 변환됐다면 DB에 한 번 저장 → 다음 로드부터 변환 불필요
+      if (linkified) save();
     } else {
       makeBlock(100, 350);
     }
