@@ -3621,7 +3621,34 @@ function setTool(tool, keepSel = false) {
         sel.removeAllRanges();
         sel.addRange(cur);
       }
-      // /설명: 커맨드 삭제 후 커서 그대로 → 일반 크기로 타이핑
+      if (cmd === '/설명') {
+        // 커서가 볼드/섹션 span 안에 있으면 span 바깥으로 커서를 꺼냄
+        const range = sel.getRangeAt(0);
+        let node = range.startContainer;
+        // 부모 중 font-weight 스타일이 적용된 span 찾기
+        let styledSpan = null;
+        let cur = node.nodeType === Node.TEXT_NODE ? node.parentElement : node;
+        while (cur && cur !== contentEl) {
+          if (cur.tagName === 'SPAN' && (cur.style.fontWeight || cur.style.fontSize)) {
+            styledSpan = cur;
+            break;
+          }
+          cur = cur.parentElement;
+        }
+        if (styledSpan) {
+          // span 바로 뒤에 일반 텍스트 노드를 삽입하고 커서 이동
+          const afterNode = document.createTextNode('\u200B');
+          styledSpan.insertAdjacentElement
+            ? styledSpan.after(afterNode)
+            : styledSpan.parentNode.insertBefore(afterNode, styledSpan.nextSibling);
+          const newRange = document.createRange();
+          newRange.setStart(afterNode, 1);
+          newRange.collapse(true);
+          sel.removeAllRanges();
+          sel.addRange(newRange);
+        }
+        // styledSpan 없으면 커서 그대로 (이미 일반 텍스트 영역)
+      }
 
       save();
     });
@@ -5033,7 +5060,7 @@ function setTool(tool, keepSel = false) {
       if (!a.href) return;
       currentHref = a.href;
       const rect = a.getBoundingClientRect();
-      btn.style.left = (rect.right + 4) + 'px';
+      btn.style.left = (rect.right + 30) + 'px';
       btn.style.top  = (rect.top - 2) + 'px';
       btn.style.display = 'block';
     }
