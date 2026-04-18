@@ -582,6 +582,18 @@
     .ctx-item.has-sub::after { content: '▶'; position: absolute; right: 10px; font-size: 9px; color: #aaa; }
     .ctx-sep { height: 1px; background: #e3e2de; margin: 4px 0; }
 
+    #ctx-file-menu {
+      position: fixed;
+      background: #fff;
+      border: 1px solid #e3e2de;
+      border-radius: 8px;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.12);
+      z-index: 9999;
+      min-width: 140px;
+      padding: 4px;
+      display: none;
+    }
+
     #ctx-folder-menu {
       position: fixed;
       background: #fff;
@@ -1011,8 +1023,8 @@
     .file-icon.txt   { background: #666; }
     .file-icon.other { background: #888; }
     .file-name {
-      font-size: 10px; color: #37352f; text-align: center;
-      word-break: break-all; max-width: 90px; line-height: 1.3;
+      font-size: 13px; color: #37352f; text-align: center;
+      word-break: break-all; max-width: 120px; line-height: 1.3;
     }
     .file-block:hover .handle { opacity: 1; }
     .file-block:hover .delete-btn { opacity: 1; }
@@ -1476,6 +1488,9 @@
   <div class="ctx-item" id="ctx-remove-from-folder">폴더에서 꺼내기</div>
   <div class="ctx-sep"></div>
   <div class="ctx-item danger" id="ctx-delete">삭제</div>
+</div>
+<div id="ctx-file-menu">
+  <div class="ctx-item" id="ctx-file-rename">이름 변경</div>
 </div>
 <div id="ctx-folder-menu">
   <div class="ctx-item" id="ctx-folder-new-proj">새 프로젝트 추가</div>
@@ -2527,6 +2542,7 @@
 
   const ctxFolderMenu = document.getElementById('ctx-folder-menu');
   let ctxTargetFolder = null;
+  let ctxFileTarget   = null;
 
   function showFolderCtxMenu(e, f) {
     if (isGuest) return;
@@ -2547,6 +2563,28 @@
   document.addEventListener('click', hideFolderCtxMenu);
   document.addEventListener('contextmenu', e => {
     if (!e.target.closest('.folder-row')) hideFolderCtxMenu();
+  });
+
+  // 파일 블록 컨텍스트 메뉴 닫기
+  document.addEventListener('click', () => {
+    const menu = document.getElementById('ctx-file-menu');
+    menu.style.display = 'none';
+    ctxFileTarget = null;
+  });
+
+  // 파일 블록 — 이름 변경
+  document.getElementById('ctx-file-rename').addEventListener('click', async () => {
+    const b = ctxFileTarget;
+    if (!b) return;
+    const newName = await askFileName(b.name);
+    if (!newName || newName === b.name) return;
+    b.name = newName;
+    b.nameEl.textContent = newName;
+    if (b._stripCard) {
+      const stripLabel = b._stripCard.querySelector('.strip-file-name, .file-name');
+      if (stripLabel) stripLabel.textContent = newName;
+    }
+    save();
   });
 
   // 폴더 컨텍스트 — 새 프로젝트 추가
@@ -4046,6 +4084,16 @@ function setTool(tool, keepSel = false) {
       if (b._stripCard) b._stripCard.remove();
       fileBlocks.splice(fileBlocks.indexOf(b), 1);
       save();
+    });
+
+    el.addEventListener('contextmenu', e => {
+      e.preventDefault();
+      e.stopPropagation();
+      ctxFileTarget = b;
+      const menu = document.getElementById('ctx-file-menu');
+      menu.style.display = 'block';
+      menu.style.left = Math.min(e.clientX, window.innerWidth  - 160) + 'px';
+      menu.style.top  = Math.min(e.clientY, window.innerHeight - 60)  + 'px';
     });
 
     refresh();
