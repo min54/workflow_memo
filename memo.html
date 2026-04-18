@@ -2183,8 +2183,10 @@
       const newDst  = projects.findIndex(x => x.id === p.id);
       projects.splice(isAbove ? newDst : newDst + 1, 0, moved);
 
-      // sort_order 일괄 저장
-      await Promise.all(projects.map((proj, i) => {
+      // sort_order 일괄 저장 (같은 그룹 내에서만)
+      const groupFolderId = moved.folder_id;
+      const groupProjects = projects.filter(x => x.folder_id === groupFolderId);
+      await Promise.all(groupProjects.map((proj, i) => {
         proj.sort_order = i;
         return sb.from('projects').update({ sort_order: i }).eq('id', proj.id);
       }));
