@@ -2565,11 +2565,18 @@
     if (!e.target.closest('.folder-row')) hideFolderCtxMenu();
   });
 
-  // 파일 블록 컨텍스트 메뉴 닫기
-  document.addEventListener('click', () => {
-    const menu = document.getElementById('ctx-file-menu');
-    menu.style.display = 'none';
-    ctxFileTarget = null;
+  // 파일 블록 컨텍스트 메뉴 닫기 (메뉴 외부 클릭 시에만)
+  document.addEventListener('click', e => {
+    if (!e.target.closest('#ctx-file-menu')) {
+      document.getElementById('ctx-file-menu').style.display = 'none';
+      ctxFileTarget = null;
+    }
+  });
+  document.addEventListener('contextmenu', e => {
+    if (!e.target.closest('.file-block, #thumb-strip, #ctx-file-menu')) {
+      document.getElementById('ctx-file-menu').style.display = 'none';
+      ctxFileTarget = null;
+    }
   });
 
   // 파일 블록 — 이름 변경
