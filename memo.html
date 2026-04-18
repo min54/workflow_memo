@@ -2581,8 +2581,11 @@
     b.name = newName;
     b.nameEl.textContent = newName;
     if (b._stripCard) {
-      const stripLabel = b._stripCard.querySelector('.strip-file-name, .file-name');
-      if (stripLabel) stripLabel.textContent = newName;
+      const stripLabel = b._stripCard.querySelector('.strip-label');
+      if (stripLabel) {
+        stripLabel.textContent = newName.length > 10 ? newName.slice(0, 9) + '…' : newName;
+        stripLabel.title = newName;
+      }
     }
     save();
   });
@@ -3965,6 +3968,16 @@ function setTool(tool, keepSel = false) {
     labelEl.style.cursor = 'default';
     labelEl.textContent = b.name.length > 10 ? b.name.slice(0, 9) + '…' : b.name;
     labelEl.title = b.name;
+
+    card.addEventListener('contextmenu', e => {
+      e.preventDefault();
+      e.stopPropagation();
+      ctxFileTarget = b;
+      const menu = document.getElementById('ctx-file-menu');
+      menu.style.display = 'block';
+      menu.style.left = Math.min(e.clientX, window.innerWidth  - 160) + 'px';
+      menu.style.top  = Math.min(e.clientY, window.innerHeight - 60)  + 'px';
+    });
 
     card.appendChild(iconEl);
     card.appendChild(labelEl);
