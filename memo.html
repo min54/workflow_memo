@@ -2829,8 +2829,8 @@
 
   // ── 새 프로젝트 추가 ────────────────────────────────────────
   document.getElementById('add-project-btn').addEventListener('click', async () => {
-    const p = { id: 'proj_' + Date.now(), name: '새 프로젝트', folder_id: null };
-    await sb.from('projects').insert({ id: p.id, name: p.name, owner: currentOwner });
+    const p = { id: 'proj_' + Date.now(), name: '새 프로젝트', folder_id: null, sort_order: projects.length };
+    await sb.from('projects').insert({ id: p.id, name: p.name, owner: currentOwner, sort_order: p.sort_order });
     projects.push(p);
     await switchProject(p.id);
     setTimeout(() => {
@@ -2842,8 +2842,8 @@
 
   // ── 새 폴더 추가 ────────────────────────────────────────────
   document.getElementById('add-folder-btn').addEventListener('click', async () => {
-    const f = { id: 'fold_' + Date.now(), name: '새 폴더', collapsed: true };
-    await sb.from('folders').insert({ id: f.id, name: f.name, collapsed: true, owner: currentOwner });
+    const f = { id: 'fold_' + Date.now(), name: '새 폴더', collapsed: true, sort_order: folders.length };
+    await sb.from('folders').insert({ id: f.id, name: f.name, collapsed: true, owner: currentOwner, sort_order: f.sort_order });
     folders.push(f);
     renderSidebar();
     setTimeout(() => {
