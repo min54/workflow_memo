@@ -4574,9 +4574,10 @@ function setTool(tool, keepSel = false) {
     const canvasH = maxY - minY;
 
     // 텍스트 블록 HTML
+    const stripZWS = s => s.replace(/\u200B/g, '');
     const textItems = blocks.map(b => {
-      const title   = b.titleEl.innerHTML.trim();
-      const content = b.contentEl.innerHTML.trim();
+      const title   = stripZWS(b.titleEl.innerHTML.trim());
+      const content = stripZWS(b.contentEl.innerHTML.trim());
       const color   = b.color || '#37352f';
       const x = b.wx - minX;
       const y = b.wy - minY;
@@ -4634,7 +4635,8 @@ function setTool(tool, keepSel = false) {
       font-size: 32px;
       font-weight: 700;
       line-height: 1.4;
-      white-space: nowrap;
+      white-space: pre-wrap;
+      word-break: break-word;
     }
     .block-content {
       font-size: 22px;
