@@ -3117,17 +3117,25 @@
 
   document.getElementById('btn-home').addEventListener('click', goHome);
 
-  // ── 휠 줌 ────────────────────────────────────────────────
+  // ── 휠: 마우스 휠 → 줌(기존), 트랙패드 두 손가락 → 팬, 핀치 → 줌 ─
   viewport.addEventListener('wheel', e => {
     e.preventDefault();
-    const factor   = e.deltaY < 0 ? 1.08 : 0.93;
-    const newScale = Math.max(0.04, Math.min(12, scale * factor));
-    const vr = viewport.getBoundingClientRect();
-    const cx = e.clientX - vr.left;
-    const cy = e.clientY - vr.top;
-    tx = cx - (cx - tx) * (newScale / scale);
-    ty = cy - (cy - ty) * (newScale / scale);
-    scale = newScale;
+    // 트랙패드 두 손가락 스와이프 감지: 가로 성분 존재 or 세로 변화량이 작음
+    const isTrackpadPan = !e.ctrlKey && !e.metaKey
+      && (e.deltaX !== 0 || Math.abs(e.deltaY) < 50);
+    if (isTrackpadPan) {
+      tx -= e.deltaX;
+      ty -= e.deltaY;
+    } else {
+      const factor   = e.deltaY < 0 ? 1.08 : 0.93;
+      const newScale = Math.max(0.04, Math.min(12, scale * factor));
+      const vr = viewport.getBoundingClientRect();
+      const cx = e.clientX - vr.left;
+      const cy = e.clientY - vr.top;
+      tx = cx - (cx - tx) * (newScale / scale);
+      ty = cy - (cy - ty) * (newScale / scale);
+      scale = newScale;
+    }
     refresh(); save();
   }, { passive: false });
 
