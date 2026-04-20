@@ -1775,9 +1775,9 @@
   }
 
   // ── 로그인 ───────────────────────────────────────────────
-  const ACCOUNTS    = { 'admin': '1', '2': '2', 'bae': 'bae' }; // { id: pw }
+  const ACCOUNTS    = { 'admin': '1', '2': '2', 'bae': 'bae', 'yim': 'yim' }; // { id: pw }
   const OWNER_MAP   = { 'admin': 'min' }; // 로그인 ID → DB owner ID 매핑
-  const GUEST_USERS = new Set(['bae']); // 공유 전용 계정 — 생성 불가, 공유 폴더만 열람
+  const GUEST_USERS = new Set(['bae', 'yim']); // 공유 전용 계정 — 생성 불가, 공유 폴더만 열람
   const AUTH_KEY  = 'wf_auth';
   const OWNER_KEY = 'wf_owner';
 
