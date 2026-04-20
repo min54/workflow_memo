@@ -4377,14 +4377,21 @@ function setTool(tool, keepSel = false) {
         projects.push(def);
       }
 
-      if (projects.length === 0) {
-        // 게스트인데 공유받은 폴더/프로젝트가 아직 없음
+      // 게스트: 공유받은 폴더 자체가 없으면 안내
+      if (isGuest && folders.length === 0) {
         renderSidebar();
         document.getElementById('project-list').innerHTML =
           `<div style="padding:16px;font-size:12px;color:#888;line-height:1.6;">
             아직 공유받은 폴더가 없습니다.<br>
             관리자에게 폴더 공유를 요청하세요.
           </div>`;
+        updateCanvasTitle();
+        return;
+      }
+
+      // 폴더는 있는데 프로젝트가 0개 (게스트가 빈 폴더만 공유받은 경우)
+      if (projects.length === 0) {
+        renderSidebar();
         updateCanvasTitle();
         return;
       }
