@@ -2050,8 +2050,11 @@
 
   let folders       = [];
   let projects      = [];
-  let currentProjId = null;
-  let dragSrc       = null; // { type: 'folder'|'proj', id }
+  let currentProjId   = null;
+  let isSwitching     = false;
+  let pendingSwitchId = null;
+  let pendingPaste    = false;
+  let dragSrc         = null; // { type: 'folder'|'proj', id }
 
   // ── 프로젝트 아이템 생성 ────────────────────────────────────
   function createProjItem(p) {
@@ -2810,6 +2813,7 @@
     if (projects.length === 1) { hideCtxMenu(); return; }
     const p = ctxTargetProj;
     hideCtxMenu();
+    if (currentProjId === p.id) clearTimeout(_saveDebounceTimer);
     await sb.from('projects').delete().eq('id', p.id);
     projects = projects.filter(x => x.id !== p.id);
     if (currentProjId === p.id) await switchProject(projects[0].id);
@@ -2818,18 +2822,32 @@
 
   // ── 프로젝트 전환 ───────────────────────────────────────────
   async function switchProject(id, pasteAfter = false) {
-    // 텍스트 전체보기가 열려있으면 닫기
-    const ovEl = document.getElementById('text-overview-overlay');
-    if (ovEl) ovEl.classList.remove('open');
-
-    try { await saveCanvas(); } catch {}
-    clearCanvas();
-    currentProjId = id;
-    renderSidebar();
-    try { await loadCanvas(); } catch {}
-    updateCanvasTitle();
-    updatePasteBtn();
-    if (pasteAfter) pasteClipboard();
+    if (isSwitching) { pendingSwitchId = { id, pasteAfter }; return; }
+    isSwitching = true;
+    try {
+      const ovEl = document.getElementById('text-overview-overlay');
+      if (ovEl) ovEl.classList.remove('open');
+      const savingId = currentProjId;
+      try { await saveCanvas(savingId); } catch {}
+      if (currentProjId !== savingId) return;
+      clearCanvas();
+      currentProjId = id;
+      renderSidebar();
+      try { await loadCanvas(); } catch {}
+      updateCanvasTitle();
+      updatePasteBtn();
+      if (pasteAfter) pasteClipboard();
+    } finally {
+      isSwitching = false;
+      if (pendingSwitchId) {
+        const next = pendingSwitchId;
+        pendingSwitchId = null;
+        await switchProject(next.id, next.pasteAfter);
+      } else if (pendingPaste) {
+        pendingPaste = false;
+        pasteClipboard();
+      }
+    }
   }
 
   // ── 새 프로젝트 추가 ────────────────────────────────────────
@@ -2925,10 +2943,16 @@
   }
 
   // ── 저장 / 불러오기 (Supabase) ────────────────────────────
-  function save() { saveCanvas(); }
+  let _saveDebounceTimer = null;
+  function save() {
+    clearTimeout(_saveDebounceTimer);
+    const projId = currentProjId;
+    _saveDebounceTimer = setTimeout(() => saveCanvas(projId), 400);
+  }
 
-  async function saveCanvas() {
-    if (!currentProjId) return;
+  async function saveCanvas(projId) {
+    const targetId = projId ?? currentProjId;
+    if (!targetId) return;
     const data = {
       scale, tx, ty,
       blocks: blocks.map(b => ({
@@ -2947,7 +2971,7 @@
         name: b.name, fileType: b.fileType, src: b.src,
       }))
     };
-    await sb.from('canvases').upsert({ project_id: currentProjId, data, updated_at: new Date().toISOString() });
+    await sb.from('canvases').upsert({ project_id: targetId, data, updated_at: new Date().toISOString() });
   }
 
   async function loadData() {
@@ -2959,10 +2983,12 @@
   // ── Undo 히스토리 ────────────────────────────────────────
   const MAX_UNDO = 20;
   let undoStack = [];
+  let undoStackProjId = null;
   let isUndoing = false;
 
   function pushUndoSnapshot() {
     if (isUndoing) return;
+    if (undoStackProjId !== currentProjId) { undoStack.length = 0; undoStackProjId = currentProjId; }
     const snapshot = {
       blocks: blocks.map(b => ({
         wx: b.wx, wy: b.wy,
@@ -2985,6 +3011,7 @@
 
   function performUndo() {
     if (undoStack.length === 0) return;
+    if (undoStackProjId !== currentProjId) { undoStack.length = 0; return; }
     isUndoing = true;
     const snapshot = JSON.parse(undoStack.pop());
 
@@ -3013,12 +3040,13 @@
       addFileStripCard(b);
     }
 
-    refresh(); save();
+    refresh(); saveCanvas(currentProjId);
     isUndoing = false;
   }
 
   // 캔버스 완전 초기화 (프로젝트 전환 시)
   function clearCanvas() {
+    clearTimeout(_saveDebounceTimer);
     blocks.forEach(b => b.el.remove());
     blocks.length = 0;
     imgBlocks.forEach(b => b.el.remove());
@@ -3028,6 +3056,12 @@
     thumbStrip.innerHTML = '';
     selected.clear();
     updateDeleteBtn();
+    undoStack.length = 0;
+    undoStackProjId = null;
+    currentColor = '#37352f';
+    document.querySelectorAll('.color-tool-btn').forEach(b => b.classList.remove('active'));
+    const defaultBtn = document.getElementById('color-black');
+    if (defaultBtn) defaultBtn.classList.add('active');
     scale = 0.5; tx = 0; ty = 0;
     zoomLabel.textContent = '50%';
   }
@@ -3067,7 +3101,7 @@
       }
       refresh();
       // 링크 변환됐다면 DB에 한 번 저장 → 다음 로드부터 변환 불필요
-      if (linkified) save();
+      if (linkified) await saveCanvas(currentProjId);
     } else {
       makeBlock(100, 350);
     }
@@ -3216,6 +3250,7 @@
     btn.addEventListener('click', () => {
       const editable = getEditableFromSel();
       if (!editable) return;
+      pushUndoSnapshot();
       const color = btn.dataset.highlight;
       const current = document.queryCommandValue('hiliteColor');
       document.execCommand('hiliteColor', false, current === color ? 'transparent' : color);
@@ -3228,12 +3263,12 @@
   document.getElementById('hl-erase').addEventListener('click', () => {
     const editable = getEditableFromSel();
     if (!editable) return;
+    pushUndoSnapshot();
     document.execCommand('hiliteColor', false, 'transparent');
     save();
   });
 
   document.querySelectorAll('.color-tool-btn').forEach(btn => {
-    // mousedown에 preventDefault → contenteditable 포커스/선택 유지
     btn.addEventListener('mousedown', e => e.preventDefault());
 
     btn.addEventListener('click', () => {
@@ -3241,7 +3276,6 @@
       document.querySelectorAll('.color-tool-btn').forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
 
-      // contenteditable 안에 선택된 텍스트가 있으면 그 부분만 색상 변경
       const sel = window.getSelection();
       if (sel && sel.rangeCount > 0) {
         const node = sel.getRangeAt(0).commonAncestorContainer;
@@ -3249,13 +3283,14 @@
           ? node.closest('[contenteditable]')
           : node.parentElement?.closest('[contenteditable]');
         if (editable) {
+          pushUndoSnapshot();
           document.execCommand('foreColor', false, currentColor);
           save();
           return;
         }
       }
 
-      // 텍스트 선택 없음: 캔버스에서 선택된 블록 전체 색상 변경
+      if (selected.size > 0) pushUndoSnapshot();
       for (const b of selected) {
         if (b.titleEl) {
           b.color = currentColor;
@@ -3358,6 +3393,7 @@ function setTool(tool, keepSel = false) {
   }
 
   function pasteClipboard() {
+    if (isSwitching) { pendingPaste = true; return; }
     // 메모리 clipboard가 비어있으면 sessionStorage에서 복원
     if (clipboard.length === 0) {
       try {
@@ -3402,7 +3438,7 @@ function setTool(tool, keepSel = false) {
       }
     }
     refresh();
-    save();
+    saveCanvas(currentProjId);
   }
 
   btnCopySelected.addEventListener('click', () => {
@@ -4484,7 +4520,7 @@ function setTool(tool, keepSel = false) {
     if (!query.trim()) { searchCount.textContent = ''; return; }
 
     // 현재 프로젝트 먼저 저장 (최신 상태 반영)
-    await saveCanvas();
+    await saveCanvas(currentProjId);
     if (token !== _searchToken) return; // 더 최신 검색이 실행 중이면 중단
     // Supabase에서 모든 프로젝트 + 캔버스 데이터 조회
     const allProjects = await loadProjects();
@@ -4843,7 +4879,7 @@ function setTool(tool, keepSel = false) {
     document.querySelectorAll('.proj-item').forEach(el => el.classList.remove('active'));
 
     // 현재 캔버스 먼저 저장
-    await saveCanvas();
+    await saveCanvas(currentProjId);
     const allProjects = await loadProjects();
     const { data: allCanvases } = await sb.from('canvases').select('project_id, data');
     const canvasMap = {};
