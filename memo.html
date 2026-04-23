@@ -858,6 +858,22 @@
     .img-block:hover .delete-btn { opacity: 1; }
     .delete-btn:hover { color: #e03e3e; }
 
+    .img-resize-handle {
+      position: absolute;
+      bottom: 20px;
+      right: -6px;
+      width: 12px;
+      height: 12px;
+      background: #fff;
+      border: 2px solid #37352f;
+      border-radius: 50%;
+      cursor: se-resize;
+      opacity: 0;
+      transition: opacity 0.15s;
+      z-index: 10;
+    }
+    .img-block:hover .img-resize-handle { opacity: 1; }
+
 
     .block-body {
       display: flex;
@@ -3875,16 +3891,43 @@ function setTool(tool, keepSel = false) {
     deleteBtn.innerHTML = '✕';
     deleteBtn.title = '삭제';
 
+    const resizeHandle = document.createElement('div');
+    resizeHandle.className = 'img-resize-handle';
+
     innerEl.appendChild(imgEl);
     innerEl.appendChild(captionEl);
     el.appendChild(handleEl);
     el.appendChild(innerEl);
+    el.appendChild(resizeHandle);
     el.appendChild(deleteBtn);
     world.appendChild(el);
 
     const b = { el, handleEl, imgEl, captionEl, wx, wy, src, w, h, label: label || '', stripLabelEl: null };
     imgBlocks.push(b);
     attachDrag(b, handleEl);
+
+    // ── 이미지 크기 조절 (우하단 드래그) ──────────────────────
+    resizeHandle.addEventListener('mousedown', e => {
+      e.stopPropagation();
+      e.preventDefault();
+      const startX = e.clientX, startY = e.clientY;
+      const startW = b.w, startH = b.h;
+
+      function onMove(e) {
+        const dw = (e.clientX - startX) / scale;
+        const dh = (e.clientY - startY) / scale;
+        b.w = Math.max(60, startW + dw);
+        b.h = Math.max(60, startH + dh);
+        refresh();
+      }
+      function onUp() {
+        document.removeEventListener('mousemove', onMove);
+        document.removeEventListener('mouseup', onUp);
+        save();
+      }
+      document.addEventListener('mousemove', onMove);
+      document.addEventListener('mouseup', onUp);
+    });
 
     // 캔버스 캡션 편집 → 스트립 라벨 동기화
     captionEl.addEventListener('input', () => {
