@@ -3934,6 +3934,31 @@ function setTool(tool, keepSel = false) {
     titleEl.addEventListener('keydown', autoLinkOnSpace);
     contentEl.addEventListener('keydown', autoLinkOnSpace);
 
+    // 백스페이스 길게 누를 때 줄 경계를 넘지 않도록 — 실수로 윗줄까지 삭제되는 문제 방지
+    // 단일 누름은 기존대로 허용, 자동 반복(e.repeat)만 차단
+    // 커서를 한 글자 뒤로 가상 이동해보고 Y 좌표가 달라지면 줄 경계라고 판단
+    function limitBackspaceToLine(e) {
+      if (e.key !== 'Backspace' || e.isComposing || !e.repeat) return;
+      const sel = window.getSelection();
+      if (!sel || !sel.rangeCount || !sel.isCollapsed || !sel.modify) return;
+      const origNode = sel.anchorNode;
+      const origOffset = sel.anchorOffset;
+      const currentRect = sel.getRangeAt(0).getBoundingClientRect();
+      // 한 글자 뒤로 가상 이동
+      sel.modify('move', 'backward', 'character');
+      const moved = (sel.anchorNode !== origNode || sel.anchorOffset !== origOffset);
+      const probeRect = moved ? sel.getRangeAt(0).getBoundingClientRect() : null;
+      // 커서 원위치 복구 (동기적, 깜빡임 없음)
+      sel.collapse(origNode, origOffset);
+      if (!moved) return; // 이미 절대 시작점 — 삭제할 게 없음
+      // Y 좌표가 바뀌었으면 줄 경계 → auto-repeat 차단
+      if (Math.abs(currentRect.top - probeRect.top) > 3) {
+        e.preventDefault();
+      }
+    }
+    titleEl.addEventListener('keydown', limitBackspaceToLine);
+    contentEl.addEventListener('keydown', limitBackspaceToLine);
+
     attachDrag(b, handleEl);
     titleEl.addEventListener('input', save);
     contentEl.addEventListener('input', save);
@@ -4561,7 +4586,9 @@ function setTool(tool, keepSel = false) {
         return;
       }
 
-      currentProjId = projects[0].id;
+      // 사이드바 렌더링 순서와 맞추기 — 폴더 없는(orphan) 프로젝트 우선, 없으면 첫 프로젝트
+      const orphans = projects.filter(p => !p.folder_id);
+      currentProjId = (orphans[0] || projects[0]).id;
       console.log('[memo] currentProjId:', currentProjId);
       renderSidebar();
       await loadCanvas();
