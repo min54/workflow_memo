@@ -3643,6 +3643,7 @@ function setTool(tool, keepSel = false) {
     if (pendingGroupDrag) {
       // 4px 이상 이동하면 실제 그룹 드래그로 전환
       if (Math.abs(e.clientX - pendingGroupDrag.sx) > 4 || Math.abs(e.clientY - pendingGroupDrag.sy) > 4) {
+        pushUndoSnapshot(); // 그룹 이동 시작 전 스냅샷
         const origins = new Map([...selected].map(s => [s, { wx: s.wx, wy: s.wy }]));
         dragState = { sx: pendingGroupDrag.sx, sy: pendingGroupDrag.sy, origins };
         pendingGroupDrag = null;
@@ -3707,6 +3708,7 @@ function setTool(tool, keepSel = false) {
     handleEl.addEventListener('mousedown', e => {
       // 핸들 드래그는 항상 단독 이동 — 그룹 선택 해제
       clearSel();
+      pushUndoSnapshot(); // 이동 시작 전 스냅샷
       const origins = new Map([[b, { wx: b.wx, wy: b.wy }]]);
       dragState = { sx: e.clientX, sy: e.clientY, origins };
       e.preventDefault(); e.stopPropagation();
@@ -3840,20 +3842,25 @@ function setTool(tool, keepSel = false) {
       save();
     });
 
-    // 블록 전체에서 포커스가 완전히 빠져나갈 때 내용 비어있으면 삭제
+    // 편집 시작 시점(focusin)에 1회 스냅샷 저장 — Ctrl+Z로 편집 이전 상태 복원 가능
+    // 블록 내부에서 포커스 이동(title↔content) 시에는 중복 저장 안 함
+    el.addEventListener('focusin', e => {
+      if (b._editSessionActive) return;
+      b._editSessionActive = true;
+      pushUndoSnapshot();
+    });
+
+    // 블록 전체에서 포커스가 완전히 빠져나갈 때: 편집 세션 종료 + 빈 블록이면 자동 삭제
     el.addEventListener('focusout', e => {
       if (el.contains(e.relatedTarget)) return; // 블록 내부로 포커스 이동 시 무시
+      b._editSessionActive = false;
       const titleEmpty   = (titleEl.innerText || '').replace(/\u200B/g, '').trim() === '';
       const contentEmpty = (contentEl.innerText || '').replace(/\u200B/g, '').trim() === '';
       if (titleEmpty && contentEmpty) {
-        pushUndoSnapshot();
         el.remove();
         blocks.splice(blocks.indexOf(b), 1);
-        save();
-      } else {
-        pushUndoSnapshot();
-        save();
       }
+      save();
     });
 
     // 붙여넣기 시 인라인 스타일 제거 → 순수 텍스트로만 삽입
@@ -4570,6 +4577,7 @@ function setTool(tool, keepSel = false) {
   // ── 더블클릭 → 새 텍스트 블록 ───────────────────────────
   viewport.addEventListener('dblclick', e => {
     if (e.target.isContentEditable) return;
+    pushUndoSnapshot(); // 블록 생성 직전 스냅샷 → Ctrl+Z로 생성 취소 가능
     const vr = viewport.getBoundingClientRect();
     const wx = (e.clientX - vr.left - tx) / scale;
     const wy = (e.clientY - vr.top  - ty) / scale;
