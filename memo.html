@@ -3403,7 +3403,8 @@ function setTool(tool, keepSel = false) {
     currentTool = tool;
     btnPointer.classList.toggle('active', tool === 'pointer');
     btnSelect.classList.toggle('active',  tool === 'select');
-    document.body.className = 'mode-' + tool;
+    document.body.classList.remove('mode-pointer', 'mode-select');
+    document.body.classList.add('mode-' + tool);
     // keepSel=true 이면 선택 유지 (그룹 이동 준비), 명시적 전환만 해제
     if (!keepSel) clearSel();
   }
