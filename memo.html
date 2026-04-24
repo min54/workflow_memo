@@ -2965,7 +2965,7 @@
   const bottomBar  = document.getElementById('bottom-bar');
   const hintEl     = document.getElementById('hint');
 
-  let scale = 0.5, tx = 0, ty = 0;
+  let scale = 0.55, tx = 0, ty = 0;
   const blocks     = [];
   const imgBlocks  = [];
   const fileBlocks = [];
@@ -3131,8 +3131,8 @@
     document.querySelectorAll('.color-tool-btn').forEach(b => b.classList.remove('active'));
     const defaultBtn = document.getElementById('color-black');
     if (defaultBtn) defaultBtn.classList.add('active');
-    scale = 0.5; tx = 0; ty = 0;
-    zoomLabel.textContent = '50%';
+    scale = 0.55; tx = 0; ty = 0;
+    zoomLabel.textContent = '55%';
   }
 
   // 옛날 저장 데이터의 font-size: Npx → em 변환
@@ -3160,7 +3160,7 @@
   async function loadCanvas() {
     const saved = await loadData();
     if (saved && saved.blocks && saved.blocks.length > 0) {
-      scale = 0.5;
+      scale = 0.55;
       tx    = 0;
       ty    = 0;
       let linkified = false;
@@ -3283,7 +3283,7 @@
   // ── 원점 이동 (Home) ────────────────────────────────────
   function goHome() {
     const startTx = tx, startTy = ty;
-    const startScale = scale, targetScale = 0.5;
+    const startScale = scale, targetScale = 0.55;
     const duration = 350;
     const start = performance.now();
     function step(now) {
