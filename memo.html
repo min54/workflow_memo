@@ -2427,8 +2427,13 @@
       if (!projId) return;
       const proj = projects.find(p => p.id === projId);
       if (!proj) return;
-      proj.folder_id = f.id;
-      await sb.from('projects').update({ folder_id: f.id }).eq('id', projId);
+      // 대상 폴더 맨 끝에 위치하도록 sort_order 재할당 (재로그인 시 순서 일관성 보장)
+      const maxOrder = projects
+        .filter(x => x.folder_id === f.id && x.id !== projId)
+        .reduce((m, x) => Math.max(m, x.sort_order ?? 0), -1);
+      proj.folder_id  = f.id;
+      proj.sort_order = maxOrder + 1;
+      await sb.from('projects').update({ folder_id: f.id, sort_order: proj.sort_order }).eq('id', projId);
       if (f.collapsed) {
         f.collapsed = false;
         await sb.from('folders').update({ collapsed: false }).eq('id', f.id);
@@ -2583,8 +2588,13 @@
       if (!projId) return;
       const proj = projects.find(p => p.id === projId);
       if (!proj || !proj.folder_id) return;
-      proj.folder_id = null;
-      await sb.from('projects').update({ folder_id: null }).eq('id', projId);
+      // orphan 그룹 맨 끝에 위치하도록 sort_order 재할당
+      const maxOrder = projects
+        .filter(x => !x.folder_id && x.id !== projId)
+        .reduce((m, x) => Math.max(m, x.sort_order ?? 0), -1);
+      proj.folder_id  = null;
+      proj.sort_order = maxOrder + 1;
+      await sb.from('projects').update({ folder_id: null, sort_order: proj.sort_order }).eq('id', projId);
       renderSidebar();
     });
   }
@@ -2844,8 +2854,13 @@
       sub.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;margin-right:6px;color:#888"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>` + f.name;
       sub.addEventListener('click', async () => {
         if (!ctxTargetProj) return;
-        ctxTargetProj.folder_id = f.id;
-        await sb.from('projects').update({ folder_id: f.id }).eq('id', ctxTargetProj.id);
+        // 대상 폴더 맨 끝에 위치하도록 sort_order 재할당
+        const maxOrder = projects
+          .filter(x => x.folder_id === f.id && x.id !== ctxTargetProj.id)
+          .reduce((m, x) => Math.max(m, x.sort_order ?? 0), -1);
+        ctxTargetProj.folder_id  = f.id;
+        ctxTargetProj.sort_order = maxOrder + 1;
+        await sb.from('projects').update({ folder_id: f.id, sort_order: ctxTargetProj.sort_order }).eq('id', ctxTargetProj.id);
         if (f.collapsed) {
           f.collapsed = false;
           await sb.from('folders').update({ collapsed: false }).eq('id', f.id);
@@ -2870,8 +2885,13 @@
   // 폴더에서 꺼내기
   document.getElementById('ctx-remove-from-folder').addEventListener('click', async () => {
     if (!ctxTargetProj) return;
-    ctxTargetProj.folder_id = null;
-    await sb.from('projects').update({ folder_id: null }).eq('id', ctxTargetProj.id);
+    // orphan 그룹 맨 끝에 위치하도록 sort_order 재할당
+    const maxOrder = projects
+      .filter(x => !x.folder_id && x.id !== ctxTargetProj.id)
+      .reduce((m, x) => Math.max(m, x.sort_order ?? 0), -1);
+    ctxTargetProj.folder_id  = null;
+    ctxTargetProj.sort_order = maxOrder + 1;
+    await sb.from('projects').update({ folder_id: null, sort_order: ctxTargetProj.sort_order }).eq('id', ctxTargetProj.id);
     hideCtxMenu();
     renderSidebar();
   });
