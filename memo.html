@@ -725,14 +725,29 @@
       box-shadow: 0 4px 16px rgba(0,0,0,0.08);
       z-index: 200;
       user-select: none;
+      transition: width 0.18s ease, padding 0.18s ease;
+    }
+    #calendar-widget.collapsed {
+      width: auto;
+      padding: 6px 8px;
+    }
+    #calendar-widget.collapsed #cal-grid,
+    #calendar-widget.collapsed #cal-prev,
+    #calendar-widget.collapsed #cal-next {
+      display: none;
+    }
+    #calendar-widget.collapsed #cal-header {
+      margin-bottom: 0;
     }
     #cal-header {
       display: flex;
       align-items: center;
-      justify-content: space-between;
+      gap: 2px;
       margin-bottom: 6px;
     }
     #cal-title {
+      flex: 1;
+      text-align: center;
       font-size: 11px;
       font-weight: 700;
       color: #37352f;
@@ -1091,6 +1106,7 @@
     #lifemap-btn {
       display: flex;
       align-items: center;
+      justify-content: center;
       gap: 8px;
       width: 100%;
       padding: 7px 10px;
@@ -1563,6 +1579,7 @@
     <button class="cal-nav" id="cal-prev">&#8249;</button>
     <span id="cal-title"></span>
     <button class="cal-nav" id="cal-next">&#8250;</button>
+    <button class="cal-nav" id="cal-toggle" title="접기/펴기" aria-label="달력 접기">&#8722;</button>
   </div>
   <div id="cal-grid"></div>
 </div>
@@ -5293,16 +5310,35 @@ function setTool(tool, keepSel = false) {
   });
 
   // ── 달력 위젯 ───────────────────────────────────────────
+  const calWidget = document.getElementById('calendar-widget');
   const calTitle = document.getElementById('cal-title');
   const calGrid  = document.getElementById('cal-grid');
+  const calToggle = document.getElementById('cal-toggle');
   const DOWS = ['일','월','화','수','목','금','토'];
   const MONTHS = ['1월','2월','3월','4월','5월','6월','7월','8월','9월','10월','11월','12월'];
 
   let calYear, calMonth;
+  let calCollapsed = localStorage.getItem('calCollapsed') === '1';
+
+  function updateCalTitle() {
+    if (calCollapsed) {
+      const t = new Date();
+      calTitle.textContent = `${MONTHS[t.getMonth()]} ${t.getDate()}일(${DOWS[t.getDay()]})`;
+    } else {
+      calTitle.textContent = `${calYear}년 ${MONTHS[calMonth]}`;
+    }
+  }
+
+  function applyCollapsedState() {
+    calWidget.classList.toggle('collapsed', calCollapsed);
+    calToggle.textContent = calCollapsed ? '+' : '−';
+    calToggle.setAttribute('aria-label', calCollapsed ? '달력 펴기' : '달력 접기');
+    updateCalTitle();
+  }
 
   function renderCalendar(year, month) {
     calYear = year; calMonth = month;
-    calTitle.textContent = `${year}년 ${MONTHS[month]}`;
+    updateCalTitle();
     calGrid.innerHTML = '';
 
     // 요일 헤더
@@ -5360,6 +5396,14 @@ function setTool(tool, keepSel = false) {
     if (m > 11) { m = 0; y++; }
     renderCalendar(y, m);
   });
+
+  calToggle.addEventListener('click', () => {
+    calCollapsed = !calCollapsed;
+    localStorage.setItem('calCollapsed', calCollapsed ? '1' : '0');
+    applyCollapsedState();
+  });
+
+  applyCollapsedState();
 
   // ── 링크 호버 시 "열기" 버튼 (전역 이벤트 위임) ──
   (function setupLinkHoverButton() {
