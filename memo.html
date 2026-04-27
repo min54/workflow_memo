@@ -3277,7 +3277,7 @@
   function updateCanvasTitle() {
     const name = projects.find(p => p.id === currentProjId)?.name || '';
     canvasTitleEl.textContent = name;
-    const fs = Math.max(1, 120 * scale);
+    const fs = Math.max(1, 70 * scale);
     canvasTitleEl.style.fontSize = fs + 'px';
     canvasTitleEl.style.left = (200 * scale + tx) + 'px';
     canvasTitleEl.style.top  = (50 * scale + ty) + 'px';
