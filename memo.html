@@ -989,6 +989,15 @@
       font-family: inherit;
       user-select: none;
     }
+    /* 링크와 버튼 사이 갭을 메우는 투명 hit-area (버튼 아래쪽) */
+    .link-open-btn::before {
+      content: '';
+      position: absolute;
+      left: 0;
+      right: 0;
+      top: 100%;
+      height: 8px;
+    }
     .link-open-btn:hover {
       background: #1d4ed8;
     }
@@ -3270,8 +3279,8 @@
     canvasTitleEl.textContent = name;
     const fs = Math.max(1, 120 * scale);
     canvasTitleEl.style.fontSize = fs + 'px';
-    canvasTitleEl.style.left = (30 * scale + tx) + 'px';
-    canvasTitleEl.style.top  = (30 * scale + ty) + 'px';
+    canvasTitleEl.style.left = (200 * scale + tx) + 'px';
+    canvasTitleEl.style.top  = (50 * scale + ty) + 'px';
   }
 
   // ── refresh: 위치 + 크기 직접 계산 ───────────────────────
@@ -5420,14 +5429,15 @@ function setTool(tool, keepSel = false) {
     function showFor(a) {
       if (!a.href) return;
       currentHref = a.href;
-      const rect = a.getBoundingClientRect();
-      btn.style.left = (rect.right + 30) + 'px';
-      btn.style.top  = (rect.top - 2) + 'px';
       btn.style.display = 'block';
+      const rect = a.getBoundingClientRect();
+      const btnH = btn.offsetHeight || 20;
+      btn.style.left = rect.left + 'px';
+      btn.style.top  = (rect.top - btnH - 6) + 'px';
     }
     function scheduleHide() {
       clearTimeout(hideTimer);
-      hideTimer = setTimeout(() => { btn.style.display = 'none'; }, 180);
+      hideTimer = setTimeout(() => { btn.style.display = 'none'; }, 350);
     }
 
     document.addEventListener('mouseover', e => {
