@@ -3181,23 +3181,39 @@
     zoomLabel.textContent = '55%';
   }
 
-  // 옛날 저장 데이터의 font-size: Npx → em 변환
-  // (/제목·/섹션 스팬이 px로 박혀 줌 스케일을 못 따라가는 이슈 교정)
+  // 옛날 저장 데이터의 font-size 정규화
+  // 1) Npx → em 변환 (/제목·/섹션 스팬이 px로 박혀 줌 스케일을 못 따라가는 이슈 교정)
+  // 2) 옛 em(1.364/1.8) → 새 em(1.2/1.6) 변환
+  //    (블록 컨텐츠 base 22→25 변경 후 기존 저장 데이터의 시각 크기를 보존)
   function migratePxFontSizes(el) {
     let changed = false;
     el.querySelectorAll('span[style*="font-size"]').forEach(span => {
       const fs = span.style.fontSize;
-      if (!fs || !fs.endsWith('px')) return;
-      const px = parseFloat(fs);
-      if (!isFinite(px) || px <= 0) return;
-      const parentFs = parseFloat(getComputedStyle(span.parentElement).fontSize);
-      if (!parentFs) return;
-      const em = px / parentFs;
-      let snapped = em;
-      if (Math.abs(em - 1.364) < 0.15)      snapped = 1.364;
-      else if (Math.abs(em - 1.8) < 0.15)   snapped = 1.8;
-      span.style.fontSize = snapped.toFixed(3) + 'em';
-      changed = true;
+      if (!fs) return;
+
+      if (fs.endsWith('px')) {
+        const px = parseFloat(fs);
+        if (!isFinite(px) || px <= 0) return;
+        const parentFs = parseFloat(getComputedStyle(span.parentElement).fontSize);
+        if (!parentFs) return;
+        const em = px / parentFs;
+        let snapped = em;
+        if (Math.abs(em - 1.28) < 0.2)       snapped = 1.28;
+        else if (Math.abs(em - 1.6) < 0.2)   snapped = 1.6;
+        span.style.fontSize = snapped.toFixed(3) + 'em';
+        changed = true;
+      } else if (fs.endsWith('em')) {
+        const em = parseFloat(fs);
+        if (!isFinite(em) || em <= 0) return;
+        let normalized = em;
+        if (Math.abs(em - 1.364) < 0.05)     normalized = 1.28;
+        else if (Math.abs(em - 1.2) < 0.05)  normalized = 1.28;
+        else if (Math.abs(em - 1.8) < 0.05)  normalized = 1.6;
+        if (normalized !== em) {
+          span.style.fontSize = normalized.toFixed(3) + 'em';
+          changed = true;
+        }
+      }
     });
     return changed;
   }
@@ -3277,10 +3293,10 @@
   function updateCanvasTitle() {
     const name = projects.find(p => p.id === currentProjId)?.name || '';
     canvasTitleEl.textContent = name;
-    const fs = Math.max(1, 70 * scale);
+    const fs = Math.max(1, 77 * scale);
     canvasTitleEl.style.fontSize = fs + 'px';
-    canvasTitleEl.style.left = (200 * scale + tx) + 'px';
-    canvasTitleEl.style.top  = (50 * scale + ty) + 'px';
+    canvasTitleEl.style.left = (500 * scale + tx) + 'px';
+    canvasTitleEl.style.top  = (100 * scale + ty) + 'px';
   }
 
   // ── refresh: 위치 + 크기 직접 계산 ───────────────────────
@@ -3291,7 +3307,7 @@
       b.el.style.top  = (b.wy * scale + ty) + 'px';
       b.titleEl.style.fontSize     = Math.max(1, 32 * scale) + 'px';
       b.titleEl.style.marginBottom = (6 * scale) + 'px';
-      b.contentEl.style.fontSize   = Math.max(1, 22 * scale) + 'px';
+      b.contentEl.style.fontSize   = Math.max(1, 25 * scale) + 'px';
       b.handleEl.style.fontSize    = Math.max(1, 18 * scale) + 'px';
       b.handleEl.style.paddingRight = (6 * scale) + 'px';
       b.handleEl.style.marginTop    = (4 * scale) + 'px';
@@ -3832,7 +3848,7 @@ function setTool(tool, keepSel = false) {
 
       if (cmd === '/제목') {
         const span = document.createElement('span');
-        span.style.fontSize   = '1.364em';
+        span.style.fontSize   = '1.28em';
         span.style.fontWeight = '700';
         const zws = document.createTextNode('\u200B');
         span.appendChild(zws);
@@ -3844,7 +3860,7 @@ function setTool(tool, keepSel = false) {
         sel.addRange(cur);
       } else if (cmd === '/섹션') {
         const span = document.createElement('span');
-        span.style.fontSize   = '1.8em';
+        span.style.fontSize   = '1.6em';
         span.style.fontWeight = '800';
         span.style.letterSpacing = '-0.5px';
         const zws = document.createTextNode('\u200B');
