@@ -3361,7 +3361,10 @@
     requestAnimationFrame(step);
   }
 
-  document.getElementById('btn-home').addEventListener('click', goHome);
+  document.getElementById('btn-home').addEventListener('click', e => {
+    e.currentTarget.blur();
+    goHome();
+  });
 
   // ── 휠: 마우스 휠 → 줌(기존), 트랙패드 두 손가락 → 팬, 핀치 → 줌 ─
   //     단, Space 홀드 중에는 무조건 팬(확대/축소 차단)
