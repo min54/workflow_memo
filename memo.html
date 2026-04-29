@@ -672,7 +672,9 @@
     .handle {
       opacity: 0;
       cursor: grab;
-      color: #b0aead;
+      color: #787774;
+      font-size: 22px;
+      font-weight: bold;
       line-height: 1;
       transition: opacity 0.15s;
       user-select: none;
@@ -2118,6 +2120,27 @@
   const SUPABASE_KEY = 'sb_publishable_9_c0u1si3dDUTAp0kBmzJw_6DP0vHgS';
   const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
+  // ── Realtime: 이 탭의 고유 식별자 (자기 변경 에코 무시용) ──
+  const CLIENT_ID = (crypto.randomUUID ? crypto.randomUUID() : ('c-' + Date.now() + '-' + Math.random().toString(36).slice(2)));
+  // 블록/이미지/파일에 부여할 고유 ID 생성기 (id 없는 옛 데이터 호환)
+  function makeBlockId() {
+    return crypto.randomUUID ? crypto.randomUUID() : ('b-' + Date.now() + '-' + Math.random().toString(36).slice(2));
+  }
+  // INSERT/UPDATE/UPSERT 페이로드에 자동으로 client_id 부착
+  function withClientId(payload) { return { ...payload, client_id: CLIENT_ID }; }
+  // 자기가 막 삭제한 row를 잠시 기억 → 자기 DELETE 이벤트 에코 무시
+  const _localDeletes = new Map(); // key: "table:id" → expireAt(ms)
+  function markLocalDelete(table, id) {
+    _localDeletes.set(table + ':' + id, Date.now() + 5000);
+  }
+  function isLocalDelete(table, id) {
+    const key = table + ':' + id;
+    const exp = _localDeletes.get(key);
+    if (!exp) return false;
+    if (Date.now() > exp) { _localDeletes.delete(key); return false; }
+    return true;
+  }
+
   async function loadProjects() {
     if (isGuest) {
       // 공유 폴더 목록을 먼저 구한 뒤 그 안의 프로젝트만 가져옴
@@ -2172,7 +2195,7 @@
       name.contentEditable = 'false';
       p.name = name.innerText.trim() || '이름 없음';
       name.innerText = p.name;
-      await sb.from('projects').update({ name: p.name }).eq('id', p.id);
+      await sb.from('projects').update(withClientId({ name: p.name })).eq('id', p.id);
       if (p.id === currentProjId) updateCanvasTitle();
     });
     name.addEventListener('keydown', e => {
@@ -2223,6 +2246,7 @@
 
       btnOk.addEventListener('click', async e => {
         e.stopPropagation();
+        markLocalDelete('projects', p.id);
         await sb.from('projects').delete().eq('id', p.id);
         projects = projects.filter(x => x.id !== p.id);
         if (currentProjId === p.id) await switchProject(projects[0].id);
@@ -2289,7 +2313,7 @@
       const groupProjects = projects.filter(x => x.folder_id === groupFolderId);
       await Promise.all(groupProjects.map((proj, i) => {
         proj.sort_order = i;
-        return sb.from('projects').update({ sort_order: i }).eq('id', proj.id);
+        return sb.from('projects').update(withClientId({ sort_order: i })).eq('id', proj.id);
       }));
 
       renderSidebar();
@@ -2343,7 +2367,7 @@
       name.contentEditable = 'false';
       f.name = name.innerText.trim() || '폴더';
       name.innerText = f.name;
-      await sb.from('folders').update({ name: f.name }).eq('id', f.id);
+      await sb.from('folders').update(withClientId({ name: f.name })).eq('id', f.id);
     });
     name.addEventListener('keydown', e => {
       if (e.key === 'Enter') { e.preventDefault(); name.blur(); }
@@ -2402,11 +2426,13 @@
         // 폴더 내 프로젝트 삭제
         const innerProjects = projects.filter(p => p.folder_id === f.id);
         for (const p of innerProjects) {
+          markLocalDelete('projects', p.id);
           await sb.from('projects').delete().eq('id', p.id);
           if (currentProjId === p.id) currentProjId = null;
         }
         projects = projects.filter(p => p.folder_id !== f.id);
         // 폴더 삭제
+        markLocalDelete('folders', f.id);
         await sb.from('folders').delete().eq('id', f.id);
         folders = folders.filter(x => x.id !== f.id);
         // 현재 프로젝트가 삭제됐으면 다른 프로젝트로 전환
@@ -2431,7 +2457,7 @@
       // 전체 재렌더 없이 해당 요소만 업데이트
       arrow.textContent = f.collapsed ? '▶' : '▼';
       children.classList.toggle('collapsed', f.collapsed);
-      try { await sb.from('folders').update({ collapsed: f.collapsed }).eq('id', f.id); } catch {}
+      try { await sb.from('folders').update(withClientId({ collapsed: f.collapsed })).eq('id', f.id); } catch {}
     });
 
     // ── 프로젝트 드롭 수신 (폴더 안으로) ──
@@ -2459,10 +2485,10 @@
         .reduce((m, x) => Math.max(m, x.sort_order ?? 0), -1);
       proj.folder_id  = f.id;
       proj.sort_order = maxOrder + 1;
-      await sb.from('projects').update({ folder_id: f.id, sort_order: proj.sort_order }).eq('id', projId);
+      await sb.from('projects').update(withClientId({ folder_id: f.id, sort_order: proj.sort_order })).eq('id', projId);
       if (f.collapsed) {
         f.collapsed = false;
-        await sb.from('folders').update({ collapsed: false }).eq('id', f.id);
+        await sb.from('folders').update(withClientId({ collapsed: false })).eq('id', f.id);
       }
       renderSidebar();
     });
@@ -2540,7 +2566,7 @@
       // sort_order 일괄 저장
       await Promise.all(folders.map((folder, i) => {
         folder.sort_order = i;
-        return sb.from('folders').update({ sort_order: i }).eq('id', folder.id);
+        return sb.from('folders').update(withClientId({ sort_order: i })).eq('id', folder.id);
       }));
 
       renderSidebar();
@@ -2620,7 +2646,7 @@
         .reduce((m, x) => Math.max(m, x.sort_order ?? 0), -1);
       proj.folder_id  = null;
       proj.sort_order = maxOrder + 1;
-      await sb.from('projects').update({ folder_id: null, sort_order: proj.sort_order }).eq('id', projId);
+      await sb.from('projects').update(withClientId({ folder_id: null, sort_order: proj.sort_order })).eq('id', projId);
       renderSidebar();
     });
   }
@@ -2716,11 +2742,11 @@
     const f = ctxTargetFolder;
     hideFolderCtxMenu();
     const p = { id: 'proj_' + Date.now(), name: '새 프로젝트', folder_id: f.id };
-    await sb.from('projects').insert({ id: p.id, name: p.name, owner: currentOwner, folder_id: f.id });
+    await sb.from('projects').insert(withClientId({ id: p.id, name: p.name, owner: currentOwner, folder_id: f.id }));
     projects.push(p);
     // 폴더 펼치기
     f.collapsed = false;
-    await sb.from('folders').update({ collapsed: false }).eq('id', f.id);
+    await sb.from('folders').update(withClientId({ collapsed: false })).eq('id', f.id);
     await switchProject(p.id);
     setTimeout(() => {
       const item = document.querySelector(`.proj-item[data-id="${p.id}"]`);
@@ -2751,10 +2777,13 @@
     hideFolderCtxMenu();
     const innerProjects = projects.filter(p => p.folder_id === f.id);
     for (const p of innerProjects) {
+      markLocalDelete('canvases', p.id);
       await sb.from('canvases').delete().eq('project_id', p.id);
     }
+    for (const p of innerProjects) markLocalDelete('projects', p.id);
     await sb.from('projects').delete().in('id', innerProjects.map(p => p.id));
     projects = projects.filter(p => p.folder_id !== f.id);
+    markLocalDelete('folders', f.id);
     await sb.from('folders').delete().eq('id', f.id);
     folders = folders.filter(x => x.id !== f.id);
     if (currentProjId === null && projects.length > 0) {
@@ -2787,7 +2816,7 @@
       del.style.cssText = 'border:none;background:none;color:#aaa;cursor:pointer;font-size:13px;padding:0 2px;';
       del.addEventListener('click', async () => {
         const newArr = shareTargetFolder.shared_with.filter(u => u !== user);
-        await sb.from('folders').update({ shared_with: newArr }).eq('id', shareTargetFolder.id);
+        await sb.from('folders').update(withClientId({ shared_with: newArr })).eq('id', shareTargetFolder.id);
         shareTargetFolder.shared_with = newArr;
         renderShareList();
         renderSidebar();
@@ -2821,7 +2850,7 @@
       return;
     }
     const newArr = [...(shareTargetFolder.shared_with || []), user];
-    await sb.from('folders').update({ shared_with: newArr }).eq('id', shareTargetFolder.id);
+    await sb.from('folders').update(withClientId({ shared_with: newArr })).eq('id', shareTargetFolder.id);
     shareTargetFolder.shared_with = newArr;
     shareInput.value = '';
     renderShareList();
@@ -2888,10 +2917,10 @@
           .reduce((m, x) => Math.max(m, x.sort_order ?? 0), -1);
         ctxTargetProj.folder_id  = f.id;
         ctxTargetProj.sort_order = maxOrder + 1;
-        await sb.from('projects').update({ folder_id: f.id, sort_order: ctxTargetProj.sort_order }).eq('id', ctxTargetProj.id);
+        await sb.from('projects').update(withClientId({ folder_id: f.id, sort_order: ctxTargetProj.sort_order })).eq('id', ctxTargetProj.id);
         if (f.collapsed) {
           f.collapsed = false;
-          await sb.from('folders').update({ collapsed: false }).eq('id', f.id);
+          await sb.from('folders').update(withClientId({ collapsed: false })).eq('id', f.id);
         }
         hideCtxMenu();
         renderSidebar();
@@ -2919,7 +2948,7 @@
       .reduce((m, x) => Math.max(m, x.sort_order ?? 0), -1);
     ctxTargetProj.folder_id  = null;
     ctxTargetProj.sort_order = maxOrder + 1;
-    await sb.from('projects').update({ folder_id: null, sort_order: ctxTargetProj.sort_order }).eq('id', ctxTargetProj.id);
+    await sb.from('projects').update(withClientId({ folder_id: null, sort_order: ctxTargetProj.sort_order })).eq('id', ctxTargetProj.id);
     hideCtxMenu();
     renderSidebar();
   });
@@ -2931,6 +2960,7 @@
     const p = ctxTargetProj;
     hideCtxMenu();
     if (currentProjId === p.id) clearTimeout(_saveDebounceTimer);
+    markLocalDelete('projects', p.id);
     await sb.from('projects').delete().eq('id', p.id);
     projects = projects.filter(x => x.id !== p.id);
     if (currentProjId === p.id) await switchProject(projects[0].id);
@@ -2953,6 +2983,7 @@
       try { await loadCanvas(); } catch {}
       updateCanvasTitle();
       updatePasteBtn();
+      subscribeCanvas(currentProjId);
       if (pasteAfter) pasteClipboard();
     } finally {
       isSwitching = false;
@@ -2970,7 +3001,7 @@
   // ── 새 프로젝트 추가 ────────────────────────────────────────
   document.getElementById('add-project-btn').addEventListener('click', async () => {
     const p = { id: 'proj_' + Date.now(), name: '새 프로젝트', folder_id: null, sort_order: projects.length };
-    await sb.from('projects').insert({ id: p.id, name: p.name, owner: currentOwner, sort_order: p.sort_order });
+    await sb.from('projects').insert(withClientId({ id: p.id, name: p.name, owner: currentOwner, sort_order: p.sort_order }));
     projects.push(p);
     await switchProject(p.id);
     setTimeout(() => {
@@ -2983,7 +3014,7 @@
   // ── 새 폴더 추가 ────────────────────────────────────────────
   document.getElementById('add-folder-btn').addEventListener('click', async () => {
     const f = { id: 'fold_' + Date.now(), name: '새 폴더', collapsed: true, sort_order: folders.length };
-    await sb.from('folders').insert({ id: f.id, name: f.name, collapsed: true, owner: currentOwner, sort_order: f.sort_order });
+    await sb.from('folders').insert(withClientId({ id: f.id, name: f.name, collapsed: true, owner: currentOwner, sort_order: f.sort_order }));
     folders.push(f);
     renderSidebar();
     setTimeout(() => {
@@ -3061,10 +3092,18 @@
 
   // ── 저장 / 불러오기 (Supabase) ────────────────────────────
   let _saveDebounceTimer = null;
+  let _savingInFlight = false; // upsert가 실제 진행 중인 동안 true
+  let _lastSaveUpdatedAt = 0;  // 우리가 마지막으로 저장한 타임스탬프(ms) — Realtime 에코/구버전 이벤트 차단용
   function save() {
     clearTimeout(_saveDebounceTimer);
     const projId = currentProjId;
-    _saveDebounceTimer = setTimeout(() => saveCanvas(projId), 400);
+    _saveDebounceTimer = setTimeout(async () => {
+      _saveDebounceTimer = null;
+      _savingInFlight = true;
+      try { await saveCanvas(projId); } catch {}
+      _savingInFlight = false;
+      flushPendingRemote();
+    }, 400);
   }
 
   async function saveCanvas(projId) {
@@ -3073,22 +3112,26 @@
     const data = {
       scale, tx, ty,
       blocks: blocks.map(b => ({
+        id: b.id,
         wx: b.wx, wy: b.wy,
         title:   b.titleEl.innerHTML,
         content: b.contentEl.innerHTML,
         color:   b.color,
       })),
       images: imgBlocks.map(b => ({
+        id: b.id,
         wx: b.wx, wy: b.wy,
         src: b.src, w: b.w, h: b.h,
         label: b.label,
       })),
       files: fileBlocks.map(b => ({
+        id: b.id,
         wx: b.wx, wy: b.wy,
         name: b.name, fileType: b.fileType, src: b.src,
       }))
     };
-    await sb.from('canvases').upsert({ project_id: targetId, data, updated_at: new Date().toISOString() });
+    await sb.from('canvases').upsert(withClientId({ project_id: targetId, data, updated_at: new Date().toISOString() }));
+    _lastSaveUpdatedAt = Date.now();
   }
 
   async function loadData() {
@@ -3108,16 +3151,19 @@
     if (undoStackProjId !== currentProjId) { undoStack.length = 0; undoStackProjId = currentProjId; }
     const snapshot = {
       blocks: blocks.map(b => ({
+        id: b.id,
         wx: b.wx, wy: b.wy,
         title:   b.titleEl.innerHTML,
         content: b.contentEl.innerHTML,
         color:   b.color,
       })),
       images: imgBlocks.map(b => ({
+        id: b.id,
         wx: b.wx, wy: b.wy,
         src: b.src, w: b.w, h: b.h, label: b.label,
       })),
       files: fileBlocks.map(b => ({
+        id: b.id,
         wx: b.wx, wy: b.wy,
         name: b.name, fileType: b.fileType, src: b.src,
       })),
@@ -3142,6 +3188,7 @@
     // 스냅샷으로 복원
     for (const d of snapshot.blocks) {
       const b = makeBlock(d.wx, d.wy);
+      if (d.id) b.id = d.id;
       if (d.title)   b.titleEl.innerHTML   = d.title;
       if (d.content) b.contentEl.innerHTML = d.content;
       if (d.color) { b.titleEl.style.color = d.color; b.contentEl.style.color = d.color; b.color = d.color; }
@@ -3150,10 +3197,12 @@
     }
     for (const d of snapshot.images) {
       const b = makeImgBlock(d.wx, d.wy, d.src, d.w, d.h, d.label);
+      if (d.id) b.id = d.id;
       addStripCard(b);
     }
     for (const d of snapshot.files) {
       const b = makeFileBlock(d.wx, d.wy, d.name, d.fileType, d.src);
+      if (d.id) b.id = d.id;
       addFileStripCard(b);
     }
 
@@ -3230,6 +3279,7 @@
       let linkified = false;
       for (const d of saved.blocks) {
         const b = makeBlock(d.wx, d.wy);
+        if (d.id) b.id = d.id;
         if (d.title)   b.titleEl.innerHTML   = d.title;
         if (d.content) b.contentEl.innerHTML = d.content;
         if (d.color) {
@@ -3244,12 +3294,14 @@
       if (saved.images) {
         for (const d of saved.images) {
           const b = makeImgBlock(d.wx, d.wy, d.src, d.w, d.h, d.label);
+          if (d.id) b.id = d.id;
           addStripCard(b);
         }
       }
       if (saved.files) {
         for (const d of saved.files) {
           const b = makeFileBlock(d.wx, d.wy, d.name, d.fileType, d.src);
+          if (d.id) b.id = d.id;
           addFileStripCard(b);
         }
       }
@@ -3310,7 +3362,7 @@
       b.titleEl.style.fontSize     = Math.max(1, 32 * scale) + 'px';
       b.titleEl.style.marginBottom = (6 * scale) + 'px';
       b.contentEl.style.fontSize   = Math.max(1, 25 * scale) + 'px';
-      b.handleEl.style.fontSize    = Math.max(1, 18 * scale) + 'px';
+      b.handleEl.style.fontSize    = Math.max(1, 22 * scale) + 'px';
       b.handleEl.style.paddingRight = (6 * scale) + 'px';
       b.handleEl.style.marginTop    = (4 * scale) + 'px';
     }
@@ -3321,7 +3373,7 @@
       b.imgEl.style.height = (b.h * scale) + 'px';
       b.captionEl.style.fontSize  = Math.max(1, 11 * scale) + 'px';
       b.captionEl.style.marginTop = (5 * scale) + 'px';
-      b.handleEl.style.fontSize    = Math.max(1, 18 * scale) + 'px';
+      b.handleEl.style.fontSize    = Math.max(1, 22 * scale) + 'px';
       b.handleEl.style.paddingRight = (6 * scale) + 'px';
       b.handleEl.style.marginTop    = (4 * scale) + 'px';
     }
@@ -3336,7 +3388,7 @@
       b.iconEl.style.fontSize      = Math.max(5, 11 * scale) + 'px';
       b.iconEl.style.borderRadius  = Math.max(2, 6 * scale) + 'px';
       b.nameEl.style.fontSize      = Math.max(4, 10 * scale) + 'px';
-      b.handleEl.style.fontSize    = Math.max(1, 18 * scale) + 'px';
+      b.handleEl.style.fontSize    = Math.max(1, 22 * scale) + 'px';
       b.handleEl.style.paddingRight = (6 * scale) + 'px';
       b.handleEl.style.marginTop    = (4 * scale) + 'px';
     }
@@ -3769,6 +3821,8 @@ function setTool(tool, keepSel = false) {
     dragState = null;
     // 그룹 이동 완료 후 선택 유지 (사용자가 어떤 것이 선택됐는지 확인 가능)
     save();
+    // 드래그 중 받았던 원격 변경이 있다면 지금 적용 (저장 디바운스 끝나는 시점에 다시 시도됨)
+    flushPendingRemote();
   });
 
   function attachDrag(b, handleEl) {
@@ -3818,7 +3872,7 @@ function setTool(tool, keepSel = false) {
     el.appendChild(deleteBtn);
     world.appendChild(el);
 
-    const b = { el, handleEl, titleEl, contentEl, wx, wy, color: currentColor };
+    const b = { id: makeBlockId(), el, handleEl, titleEl, contentEl, wx, wy, color: currentColor };
     titleEl.style.color   = currentColor;
     contentEl.style.color = currentColor;
     blocks.push(b);
@@ -4083,7 +4137,7 @@ function setTool(tool, keepSel = false) {
     el.appendChild(deleteBtn);
     world.appendChild(el);
 
-    const b = { el, handleEl, imgEl, captionEl, wx, wy, src, w, h, label: label || '', stripLabelEl: null };
+    const b = { id: makeBlockId(), el, handleEl, imgEl, captionEl, wx, wy, src, w, h, label: label || '', stripLabelEl: null };
     imgBlocks.push(b);
     attachDrag(b, handleEl);
 
@@ -4343,7 +4397,7 @@ function setTool(tool, keepSel = false) {
     el.appendChild(deleteBtn);
     world.appendChild(el);
 
-    const b = { el, handleEl, innerEl, iconEl, nameEl, wx, wy, name, fileType, src };
+    const b = { id: makeBlockId(), el, handleEl, innerEl, iconEl, nameEl, wx, wy, name, fileType, src };
     fileBlocks.push(b);
     attachDrag(b, handleEl);
 
@@ -4510,12 +4564,12 @@ function setTool(tool, keepSel = false) {
     if (!localProjects || localProjects.length === 0) return false;
 
     for (const p of localProjects) {
-      await sb.from('projects').upsert({ id: p.id, name: p.name });
+      await sb.from('projects').upsert(withClientId({ id: p.id, name: p.name }));
       const canvasRaw = localStorage.getItem('memo_canvas_' + p.id);
       if (canvasRaw) {
         try {
           const data = JSON.parse(canvasRaw);
-          await sb.from('canvases').upsert({ project_id: p.id, data, updated_at: new Date().toISOString() });
+          await sb.from('canvases').upsert(withClientId({ project_id: p.id, data, updated_at: new Date().toISOString() }));
         } catch {}
       }
     }
@@ -4523,6 +4577,291 @@ function setTool(tool, keepSel = false) {
     localStorage.removeItem('memo_projects');
     localProjects.forEach(p => localStorage.removeItem('memo_canvas_' + p.id));
     return true;
+  }
+
+  // ── Realtime: 친구 변경을 즉시 반영 ─────────────────────────
+  // (블록은 canvases.data JSONB 안에 통째로 저장됨. 따라서 canvases UPDATE 이벤트
+  //  하나로 전체 캔버스가 도착 → 블록 id 단위로 diff/머지)
+  let _canvasChannel = null;
+  let _sidebarChannel = null;
+  let _remoteUpdatePending = false; // 드래그/저장 중에 받은 이벤트는 대기 후 fresh fetch
+
+  function isFolderVisibleToMe(f) {
+    if (!f) return false;
+    if (isGuest) return Array.isArray(f.shared_with) && f.shared_with.includes(currentOwner);
+    return f.owner === currentOwner || (Array.isArray(f.shared_with) && f.shared_with.includes(currentOwner));
+  }
+  function isProjectVisibleToMe(p) {
+    if (!p) return false;
+    if (isGuest) {
+      if (!p.folder_id) return false;
+      const f = folders.find(x => x.id === p.folder_id);
+      return !!(f && isFolderVisibleToMe(f));
+    }
+    if (p.owner === currentOwner) return true;
+    if (p.folder_id) {
+      const f = folders.find(x => x.id === p.folder_id);
+      return !!(f && isFolderVisibleToMe(f));
+    }
+    return false;
+  }
+
+  function startSidebarRealtime() {
+    if (_sidebarChannel) return;
+    _sidebarChannel = sb.channel('sidebar-' + currentOwner)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'folders'  }, handleFolderEvent)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'projects' }, handleProjectEvent)
+      .subscribe();
+  }
+
+  function subscribeCanvas(projId) {
+    if (_canvasChannel) {
+      try { sb.removeChannel(_canvasChannel); } catch {}
+      _canvasChannel = null;
+    }
+    if (!projId) return;
+    _canvasChannel = sb.channel('canvas-' + projId)
+      .on('postgres_changes', {
+        event: 'UPDATE', schema: 'public', table: 'canvases',
+        filter: `project_id=eq.${projId}`
+      }, payload => {
+        const row = payload.new;
+        if (!row) return;
+        onRemoteCanvasChange(row.data, row.client_id, row.updated_at);
+      })
+      .subscribe();
+  }
+
+  function handleFolderEvent(payload) {
+    const { eventType, new: newRow, old: oldRow } = payload;
+    if (eventType !== 'DELETE' && newRow?.client_id === CLIENT_ID) return; // 자기 변경 무시
+    if (eventType === 'DELETE' && isLocalDelete('folders', oldRow?.id)) return;
+
+    if (eventType === 'INSERT') {
+      if (!isFolderVisibleToMe(newRow)) return;
+      if (folders.some(f => f.id === newRow.id)) return;
+      folders.push({ ...newRow, collapsed: true });
+      folders.sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
+      renderSidebar();
+    } else if (eventType === 'UPDATE') {
+      const idx = folders.findIndex(f => f.id === newRow.id);
+      if (!isFolderVisibleToMe(newRow)) {
+        if (idx >= 0) { folders.splice(idx, 1); renderSidebar(); }
+        return;
+      }
+      if (idx < 0) {
+        folders.push({ ...newRow, collapsed: true });
+        folders.sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
+        renderSidebar();
+        return;
+      }
+      // 로컬 collapsed 상태는 사용자 보기 편의라 유지
+      const localCollapsed = folders[idx].collapsed;
+      folders[idx] = { ...folders[idx], ...newRow, collapsed: localCollapsed };
+      folders.sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
+      renderSidebar();
+    } else if (eventType === 'DELETE') {
+      const id = oldRow?.id;
+      if (!id) return;
+      const idx = folders.findIndex(f => f.id === id);
+      if (idx < 0) return;
+      folders.splice(idx, 1);
+      const removedProjs = projects.filter(p => p.folder_id === id);
+      projects = projects.filter(p => p.folder_id !== id);
+      if (currentProjId && removedProjs.some(p => p.id === currentProjId)) {
+        if (projects.length > 0) { switchProject(projects[0].id); return; }
+      }
+      renderSidebar();
+    }
+  }
+
+  function handleProjectEvent(payload) {
+    const { eventType, new: newRow, old: oldRow } = payload;
+    if (eventType !== 'DELETE' && newRow?.client_id === CLIENT_ID) return;
+    if (eventType === 'DELETE' && isLocalDelete('projects', oldRow?.id)) return;
+
+    if (eventType === 'INSERT') {
+      if (!isProjectVisibleToMe(newRow)) return;
+      if (projects.some(p => p.id === newRow.id)) return;
+      projects.push({ ...newRow });
+      projects.sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
+      renderSidebar();
+    } else if (eventType === 'UPDATE') {
+      const idx = projects.findIndex(p => p.id === newRow.id);
+      if (!isProjectVisibleToMe(newRow)) {
+        if (idx >= 0) {
+          const wasCurrent = (currentProjId === newRow.id);
+          projects.splice(idx, 1);
+          if (wasCurrent && projects.length > 0) { switchProject(projects[0].id); return; }
+          renderSidebar();
+        }
+        return;
+      }
+      if (idx < 0) {
+        projects.push({ ...newRow });
+        projects.sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
+        renderSidebar();
+        return;
+      }
+      projects[idx] = { ...projects[idx], ...newRow };
+      projects.sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
+      if (currentProjId === newRow.id) updateCanvasTitle();
+      renderSidebar();
+    } else if (eventType === 'DELETE') {
+      const id = oldRow?.id;
+      if (!id) return;
+      const idx = projects.findIndex(p => p.id === id);
+      if (idx < 0) return;
+      const wasCurrent = (currentProjId === id);
+      projects.splice(idx, 1);
+      if (wasCurrent && projects.length > 0) { switchProject(projects[0].id); return; }
+      renderSidebar();
+    }
+  }
+
+  function onRemoteCanvasChange(remoteData, remoteClientId, remoteUpdatedAt) {
+    if (remoteClientId === CLIENT_ID) return;
+    if (!remoteData) return;
+    // 우리가 더 최근에 저장했다면 구버전 이벤트는 무시
+    const remoteTs = remoteUpdatedAt ? Date.parse(remoteUpdatedAt) : 0;
+    if (remoteTs && _lastSaveUpdatedAt && remoteTs < _lastSaveUpdatedAt) return;
+    // 저장 디바운스 중이거나 드래그 중이면 큐잉만 → 안전 시점에 fresh fetch
+    if (_saveDebounceTimer || _savingInFlight || dragState) {
+      _remoteUpdatePending = true;
+      return;
+    }
+    applyRemoteCanvasData(remoteData);
+  }
+
+  async function flushPendingRemote() {
+    if (!_remoteUpdatePending || !currentProjId) return;
+    if (_saveDebounceTimer || _savingInFlight || dragState) return;
+    _remoteUpdatePending = false;
+    try {
+      const { data } = await sb.from('canvases')
+        .select('data, client_id, updated_at')
+        .eq('project_id', currentProjId)
+        .maybeSingle();
+      if (!data) return;
+      if (data.client_id === CLIENT_ID) return;
+      applyRemoteCanvasData(data.data);
+    } catch {}
+  }
+
+  // 원격 캔버스 데이터를 현재 화면에 머지 (편집/드래그 중 블록 보호)
+  function applyRemoteCanvasData(remoteData) {
+    if (!remoteData) return;
+    const remoteBlocks = remoteData.blocks || [];
+    const remoteImages = remoteData.images || [];
+    const remoteFiles  = remoteData.files  || [];
+
+    // 현재 편집 중인 contenteditable 위치 캡처 (덮어쓰지 않음)
+    const active = document.activeElement;
+    let focusedId = null, focusedField = null;
+    if (active && active.isContentEditable) {
+      const blockEl = active.closest('.block, .img-block');
+      if (blockEl?.classList.contains('block')) {
+        const b = blocks.find(x => x.el === blockEl);
+        if (b) {
+          focusedId = b.id;
+          focusedField = active.classList.contains('block-title') ? 'title' : 'content';
+        }
+      } else if (blockEl?.classList.contains('img-block')) {
+        const b = imgBlocks.find(x => x.el === blockEl);
+        if (b) { focusedId = b.id; focusedField = 'caption'; }
+      }
+    }
+
+    const remBlocksById = new Map(remoteBlocks.filter(d => d.id).map(d => [d.id, d]));
+    const remImagesById = new Map(remoteImages.filter(d => d.id).map(d => [d.id, d]));
+    const remFilesById  = new Map(remoteFiles .filter(d => d.id).map(d => [d.id, d]));
+
+    // 원격에 없는 로컬 블록 제거 (편집 중인 블록은 보호)
+    for (let i = blocks.length - 1; i >= 0; i--) {
+      const b = blocks[i];
+      if (b.id && remBlocksById.has(b.id)) continue;
+      if (b.id === focusedId) continue;
+      selected.delete(b);
+      b.el.remove();
+      blocks.splice(i, 1);
+    }
+    for (let i = imgBlocks.length - 1; i >= 0; i--) {
+      const b = imgBlocks[i];
+      if (b.id && remImagesById.has(b.id)) continue;
+      if (b.id === focusedId) continue;
+      selected.delete(b);
+      if (b.stripLabelEl?.parentElement) b.stripLabelEl.parentElement.remove();
+      b.el.remove();
+      imgBlocks.splice(i, 1);
+    }
+    for (let i = fileBlocks.length - 1; i >= 0; i--) {
+      const b = fileBlocks[i];
+      if (b.id && remFilesById.has(b.id)) continue;
+      if (b.id === focusedId) continue;
+      selected.delete(b);
+      if (b._stripCard) b._stripCard.remove();
+      b.el.remove();
+      fileBlocks.splice(i, 1);
+    }
+
+    // 원격 → 로컬 추가/업데이트
+    for (const d of remoteBlocks) {
+      if (!d.id) continue;
+      let b = blocks.find(x => x.id === d.id);
+      if (!b) {
+        b = makeBlock(d.wx, d.wy);
+        b.id = d.id;
+      } else {
+        b.wx = d.wx; b.wy = d.wy;
+      }
+      const isEditing = (focusedId === d.id);
+      if (!isEditing || focusedField !== 'title') {
+        if (d.title !== undefined && b.titleEl.innerHTML !== d.title) b.titleEl.innerHTML = d.title;
+      }
+      if (!isEditing || focusedField !== 'content') {
+        if (d.content !== undefined && b.contentEl.innerHTML !== d.content) b.contentEl.innerHTML = d.content;
+      }
+      if (d.color) {
+        b.titleEl.style.color   = d.color;
+        b.contentEl.style.color = d.color;
+        b.color = d.color;
+      }
+    }
+    for (const d of remoteImages) {
+      if (!d.id) continue;
+      let b = imgBlocks.find(x => x.id === d.id);
+      if (!b) {
+        b = makeImgBlock(d.wx, d.wy, d.src, d.w, d.h, d.label);
+        b.id = d.id;
+        addStripCard(b);
+      } else {
+        b.wx = d.wx; b.wy = d.wy;
+        b.w = d.w; b.h = d.h;
+        if (b.imgEl && b.imgEl.src !== d.src) b.imgEl.src = d.src;
+        const isEditingCap = (focusedId === d.id && focusedField === 'caption');
+        if (!isEditingCap && b.label !== d.label) {
+          b.label = d.label || '';
+          b.captionEl.innerText = b.label;
+        }
+      }
+    }
+    for (const d of remoteFiles) {
+      if (!d.id) continue;
+      let b = fileBlocks.find(x => x.id === d.id);
+      if (!b) {
+        b = makeFileBlock(d.wx, d.wy, d.name, d.fileType, d.src);
+        b.id = d.id;
+        addFileStripCard(b);
+      } else {
+        b.wx = d.wx; b.wy = d.wy;
+        if (b.name !== d.name) {
+          b.name = d.name;
+          if (b.nameEl) b.nameEl.textContent = d.name;
+        }
+      }
+    }
+
+    refresh();
   }
 
   // ── 초기 실행: Supabase에서 프로젝트 + 캔버스 로드 ─────────
@@ -4629,7 +4968,7 @@ function setTool(tool, keepSel = false) {
 
       if (!isGuest && projects.length === 0) {
         const def = { id: 'proj_' + Date.now(), name: '프로젝트 1', folder_id: null };
-        const { error } = await sb.from('projects').insert({ id: def.id, name: def.name, owner: currentOwner });
+        const { error } = await sb.from('projects').insert(withClientId({ id: def.id, name: def.name, owner: currentOwner }));
         if (error) throw error;
         projects.push(def);
       }
@@ -4643,6 +4982,7 @@ function setTool(tool, keepSel = false) {
             관리자에게 폴더 공유를 요청하세요.
           </div>`;
         updateCanvasTitle();
+        startSidebarRealtime();
         return;
       }
 
@@ -4650,6 +4990,7 @@ function setTool(tool, keepSel = false) {
       if (projects.length === 0) {
         renderSidebar();
         updateCanvasTitle();
+        startSidebarRealtime();
         return;
       }
 
@@ -4661,6 +5002,9 @@ function setTool(tool, keepSel = false) {
       await loadCanvas();
       updateCanvasTitle();
       refreshStorageUsage(); // 비동기로 사용량 표시 (로딩 블록 안 함)
+      // Realtime 구독 시작 (사이드바 + 현재 캔버스)
+      startSidebarRealtime();
+      subscribeCanvas(currentProjId);
     } catch (err) {
       console.error('[memo] init error:', err);
       document.getElementById('project-list').innerHTML =
