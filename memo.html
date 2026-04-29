@@ -2790,6 +2790,7 @@
         await sb.from('folders').update({ shared_with: newArr }).eq('id', shareTargetFolder.id);
         shareTargetFolder.shared_with = newArr;
         renderShareList();
+        renderSidebar();
       });
       row.appendChild(del);
       shareList.appendChild(row);
@@ -2824,6 +2825,7 @@
     shareTargetFolder.shared_with = newArr;
     shareInput.value = '';
     renderShareList();
+    renderSidebar();
   });
 
   shareInput.addEventListener('keydown', e => {
