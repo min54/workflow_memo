@@ -672,14 +672,14 @@
     .handle {
       opacity: 0;
       cursor: grab;
-      color: #787774;
-      font-size: 22px;
+      color: #555452;
+      font-size: 28px;
       font-weight: bold;
       line-height: 1;
       transition: opacity 0.15s;
       user-select: none;
       flex-shrink: 0;
-      padding: 4px 8px 4px 4px;
+      padding: 0px 8px 4px 4px;
     }
 
     .block:hover .handle,
@@ -888,8 +888,7 @@
       transition: opacity 0.15s, color 0.15s;
       user-select: none;
       flex-shrink: 0;
-      padding: 2px 4px 2px 12px;
-      margin-top: 4px;
+      padding: 2px 0 2px 4px;
       background: none;
       border: none;
     }
@@ -3362,9 +3361,12 @@
       b.titleEl.style.fontSize     = Math.max(1, 32 * scale) + 'px';
       b.titleEl.style.marginBottom = (6 * scale) + 'px';
       b.contentEl.style.fontSize   = Math.max(1, 25 * scale) + 'px';
-      b.handleEl.style.fontSize    = Math.max(1, 22 * scale) + 'px';
+      b.handleEl.style.fontSize    = Math.max(1, 28 * scale) + 'px';
       b.handleEl.style.paddingRight = (6 * scale) + 'px';
-      b.handleEl.style.marginTop    = (4 * scale) + 'px';
+      b.handleEl.style.marginTop    = '0px';
+      b.deleteBtn.style.fontSize   = Math.max(1, 13 * scale) + 'px';
+      b.deleteBtn.style.marginTop  = (4 * scale) + 'px';
+      b.deleteBtn.style.marginLeft = (14 * scale) + 'px';
     }
     for (const b of imgBlocks) {
       b.el.style.left = (b.wx * scale + tx) + 'px';
@@ -3373,9 +3375,12 @@
       b.imgEl.style.height = (b.h * scale) + 'px';
       b.captionEl.style.fontSize  = Math.max(1, 11 * scale) + 'px';
       b.captionEl.style.marginTop = (5 * scale) + 'px';
-      b.handleEl.style.fontSize    = Math.max(1, 22 * scale) + 'px';
+      b.handleEl.style.fontSize    = Math.max(1, 28 * scale) + 'px';
       b.handleEl.style.paddingRight = (6 * scale) + 'px';
-      b.handleEl.style.marginTop    = (4 * scale) + 'px';
+      b.handleEl.style.marginTop    = '0px';
+      b.deleteBtn.style.fontSize   = Math.max(1, 13 * scale) + 'px';
+      b.deleteBtn.style.marginTop  = (4 * scale) + 'px';
+      b.deleteBtn.style.marginLeft = (14 * scale) + 'px';
     }
     for (const b of fileBlocks) {
       b.el.style.left = (b.wx * scale + tx) + 'px';
@@ -3388,9 +3393,12 @@
       b.iconEl.style.fontSize      = Math.max(5, 11 * scale) + 'px';
       b.iconEl.style.borderRadius  = Math.max(2, 6 * scale) + 'px';
       b.nameEl.style.fontSize      = Math.max(4, 10 * scale) + 'px';
-      b.handleEl.style.fontSize    = Math.max(1, 22 * scale) + 'px';
+      b.handleEl.style.fontSize    = Math.max(1, 28 * scale) + 'px';
       b.handleEl.style.paddingRight = (6 * scale) + 'px';
-      b.handleEl.style.marginTop    = (4 * scale) + 'px';
+      b.handleEl.style.marginTop    = '0px';
+      b.deleteBtn.style.fontSize   = Math.max(1, 13 * scale) + 'px';
+      b.deleteBtn.style.marginTop  = (4 * scale) + 'px';
+      b.deleteBtn.style.marginLeft = (14 * scale) + 'px';
     }
     zoomLabel.textContent = Math.round(scale * 100) + '%';
     updateCanvasTitle();
@@ -3872,7 +3880,7 @@ function setTool(tool, keepSel = false) {
     el.appendChild(deleteBtn);
     world.appendChild(el);
 
-    const b = { id: makeBlockId(), el, handleEl, titleEl, contentEl, wx, wy, color: currentColor };
+    const b = { id: makeBlockId(), el, handleEl, deleteBtn, titleEl, contentEl, wx, wy, color: currentColor };
     titleEl.style.color   = currentColor;
     contentEl.style.color = currentColor;
     blocks.push(b);
@@ -4137,7 +4145,7 @@ function setTool(tool, keepSel = false) {
     el.appendChild(deleteBtn);
     world.appendChild(el);
 
-    const b = { id: makeBlockId(), el, handleEl, imgEl, captionEl, wx, wy, src, w, h, label: label || '', stripLabelEl: null };
+    const b = { id: makeBlockId(), el, handleEl, deleteBtn, imgEl, captionEl, wx, wy, src, w, h, label: label || '', stripLabelEl: null };
     imgBlocks.push(b);
     attachDrag(b, handleEl);
 
@@ -4397,7 +4405,7 @@ function setTool(tool, keepSel = false) {
     el.appendChild(deleteBtn);
     world.appendChild(el);
 
-    const b = { id: makeBlockId(), el, handleEl, innerEl, iconEl, nameEl, wx, wy, name, fileType, src };
+    const b = { id: makeBlockId(), el, handleEl, deleteBtn, innerEl, iconEl, nameEl, wx, wy, name, fileType, src };
     fileBlocks.push(b);
     attachDrag(b, handleEl);
 
