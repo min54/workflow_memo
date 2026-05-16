@@ -3913,6 +3913,31 @@ function setTool(tool, keepSel = false) {
       sel.removeAllRanges();
       sel.addRange(delRange); // 삭제 지점에 커서
 
+      // 공통: 커서가 styled span(/제목·/섹션) 안에 있으면 바깥으로 빼냄
+      // em 단위가 중첩되며 글자 크기가 누적 증폭되는 문제 방지
+      {
+        const range0 = sel.getRangeAt(0);
+        const node0 = range0.startContainer;
+        let styledSpan = null;
+        let p = node0.nodeType === Node.TEXT_NODE ? node0.parentElement : node0;
+        while (p && p !== contentEl) {
+          if (p.tagName === 'SPAN' && (p.style.fontWeight || p.style.fontSize)) {
+            styledSpan = p;
+            break;
+          }
+          p = p.parentElement;
+        }
+        if (styledSpan) {
+          const afterNode = document.createTextNode('​');
+          styledSpan.parentNode.insertBefore(afterNode, styledSpan.nextSibling);
+          const newRange = document.createRange();
+          newRange.setStart(afterNode, 1);
+          newRange.collapse(true);
+          sel.removeAllRanges();
+          sel.addRange(newRange);
+        }
+      }
+
       if (cmd === '/제목') {
         const span = document.createElement('span');
         span.style.fontSize   = '1.28em';
@@ -3939,34 +3964,7 @@ function setTool(tool, keepSel = false) {
         sel.removeAllRanges();
         sel.addRange(cur);
       }
-      if (cmd === '/설명') {
-        // 커서가 볼드/섹션 span 안에 있으면 span 바깥으로 커서를 꺼냄
-        const range = sel.getRangeAt(0);
-        let node = range.startContainer;
-        // 부모 중 font-weight 스타일이 적용된 span 찾기
-        let styledSpan = null;
-        let cur = node.nodeType === Node.TEXT_NODE ? node.parentElement : node;
-        while (cur && cur !== contentEl) {
-          if (cur.tagName === 'SPAN' && (cur.style.fontWeight || cur.style.fontSize)) {
-            styledSpan = cur;
-            break;
-          }
-          cur = cur.parentElement;
-        }
-        if (styledSpan) {
-          // span 바로 뒤에 일반 텍스트 노드를 삽입하고 커서 이동
-          const afterNode = document.createTextNode('\u200B');
-          styledSpan.insertAdjacentElement
-            ? styledSpan.after(afterNode)
-            : styledSpan.parentNode.insertBefore(afterNode, styledSpan.nextSibling);
-          const newRange = document.createRange();
-          newRange.setStart(afterNode, 1);
-          newRange.collapse(true);
-          sel.removeAllRanges();
-          sel.addRange(newRange);
-        }
-        // styledSpan 없으면 커서 그대로 (이미 일반 텍스트 영역)
-      }
+      // /설명은 위 공통 escape 로직으로 처리 완료 (별도 분기 불필요)
 
       save();
     });
