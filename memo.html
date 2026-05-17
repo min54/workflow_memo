@@ -3268,6 +3268,37 @@
     return changed;
   }
 
+  // contentEl 구조 정규화
+  // .block-content 안에 <div> 줄과 인라인 직속 자식(span/text/b 등)이 섞여 있으면,
+  // 직속 인라인 자식들을 <div>로 감싸서 모든 줄이 동일한 부모-자식 구조를 갖도록 만든다.
+  // (em이 직속/상속 경로에서 서로 다르게 라운딩되어 줌 시 줄 크기가 어긋나는 이슈 교정)
+  function normalizeBlockStructure(el) {
+    const childArr = Array.from(el.children);
+    const hasDiv = childArr.some(c => c.tagName === 'DIV');
+    if (!hasDiv) return false; // 단일 줄(div 없음)은 정규화 불필요
+
+    let changed = false;
+    let buffer = [];
+    const flush = () => {
+      if (buffer.length === 0) return;
+      const div = document.createElement('div');
+      const first = buffer[0];
+      first.parentNode.insertBefore(div, first);
+      buffer.forEach(n => div.appendChild(n));
+      buffer = [];
+      changed = true;
+    };
+    for (const node of Array.from(el.childNodes)) {
+      if (node.nodeType === Node.ELEMENT_NODE && node.tagName === 'DIV') {
+        flush();
+      } else {
+        buffer.push(node);
+      }
+    }
+    flush();
+    return changed;
+  }
+
   // 저장된 데이터로 캔버스 복원
   async function loadCanvas() {
     const saved = await loadData();
@@ -3310,6 +3341,7 @@
       for (const b of blocks) {
         if (migratePxFontSizes(b.titleEl))   migrated = true;
         if (migratePxFontSizes(b.contentEl)) migrated = true;
+        if (normalizeBlockStructure(b.contentEl)) migrated = true;
       }
       if (migrated) refresh();
       // 링크/폰트 변환됐다면 DB에 한 번 저장 → 다음 로드부터 변환 불필요
